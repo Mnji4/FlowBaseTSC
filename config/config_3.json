@@ -1,0 +1,11 @@
+{
+    "interval": 1.0, 
+    "seed": 0, 
+    "dir": "./", 
+    "roadnetFile": "manhattan/syn3/roadnet_1X3.json", 
+    "flowFile": "manhattan/syn3/syn_1x3_gaussian_500_1h.json", 
+    "rlTrafficLight": true, 
+    "saveReplay": true, 
+    "roadnetLogFile": "manhattan/log.json", 
+    "replayLogFile": "manhattan/log.txt"
+}
