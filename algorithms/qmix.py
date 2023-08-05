@@ -9,12 +9,6 @@ from utils.misc import onehot_from_logits, categorical_sample
 import numpy as np
 MSELoss = torch.nn.MSELoss()
 
-data = np.load('data3.npy', allow_pickle=True).item()
-cloest = data['cloest']
-mask = data['mask']
-road_mask = data['road_mask']
-
-
 class Qmix(object):
     """
     Wrapper class for SAC agents with central attention critic in multi-agent
@@ -51,14 +45,14 @@ class Qmix(object):
         #                               hidden_dim=pol_hidden_dim,
         #                               **params)
         #                  for params in agent_init_params]
-        self.critic = SingleCritic(sa_size[:5], hidden_dim=critic_hidden_dim,
+        self.critic = SingleCritic(sa_size[0], hidden_dim=critic_hidden_dim,
                                       attend_heads=attend_heads, norm_in = False)
-        self.target_critic = SingleCritic(sa_size[:5], hidden_dim=critic_hidden_dim,
+        self.target_critic = SingleCritic(sa_size[0], hidden_dim=critic_hidden_dim,
                                              attend_heads=attend_heads, norm_in = False)
         hard_update(self.target_critic, self.critic)
 
         #self.mixer_device = 'cuda:0'
-        state_dim = np.sum(road_mask == 0)*3 + len(road_mask)*self.a_dim
+        state_dim = self.s_dim + self.a_dim
 
         self.action_mask = [0] * self.s_dim*self.nagents
         for i in range(self.nagents):
@@ -120,43 +114,22 @@ class Qmix(object):
         """
 
         obs, acs, rews, next_obs, dones = sample
-        # Q loss
-        next_acs = []
-        next_log_pis = []
+
         #pi = self.central_agent.target_policy
 
         agent_num = len(next_obs)
         batch_size = next_obs[0].shape[0]
 
 
-        next_5obs = []
-        #next_5acs = []
-        tmp_obs = torch.tensor(np.zeros(next_obs[0].shape), dtype=torch.float32, device=next_obs[0].device)
-        #tmp_acs = torch.tensor(np.zeros(next_acs[0].shape), dtype=torch.float32, device=next_obs[0].device)
-        next_mask_obs = []
-        for a_i in range(self.nagents):
-            next_5obs.append(torch.stack([next_obs[i] if i != -1 else tmp_obs for i in cloest[a_i]]))
-            #next_5acs.append(torch.stack([next_acs[i] if i != -1 else tmp_acs for i in cloest[a_i]]))
-
-            next_mask_obs.append([mask[a_i] for _  in range(batch_size)])
-        
-        next_mask_obs = torch.ByteTensor(next_mask_obs).bool().to(next_obs[0].device).view(-1, 1, len(mask[0]))
         
         #5 * (threads*agents) *54
         #trgt_critic_in = list(torch.stack(next_5obs).permute(1,0,2,3).reshape(5, agent_num*batch_size, -1))
-        trgt_critic_in = list(torch.cat(next_5obs,dim = 1))
+        trgt_critic_in = next_obs
 
-        corrent_5obs = []
-        corrent_5acs = torch.cat(acs)
-        mask_obs = []
-        for a_i in range(self.nagents):
-            corrent_5obs.append(torch.stack([obs[i] if i != -1 else tmp_obs for i in cloest[a_i]]))
-            mask_obs.append([mask[a_i] for _  in range(batch_size)])
-        
-        mask_obs = torch.ByteTensor(mask_obs).bool().to(next_obs[0].device).view(-1,1,len(mask[0]))
+
         
         #critic_in = list(torch.stack(corrent_5obs).permute(1,0,2,3).reshape(5, agent_num*batch_size, -1))
-        critic_in = list(torch.cat(corrent_5obs,dim = 1))
+        critic_in = list(torch.cat((obs,acs),dim = 1))
 
         with torch.no_grad():
             next_q = self.target_critic(trgt_critic_in, mask=next_mask_obs, return_all_q=False, return_q=True)

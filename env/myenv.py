@@ -6,7 +6,7 @@ import random
 class MyEnv(gym.Env):
     def __init__(self, eng_config_file, max_step = 3600):
         f = open(eng_config_file, 'r')
-        roadnet_file = f.readlines()[3][20:-4]
+        roadnet_file = json.load(f)['roadnetFile']
         f = open(roadnet_file, 'r')
         a = json.load(f)
         f.close()
@@ -83,6 +83,10 @@ class MyEnv(gym.Env):
         
         self.agent_lane = [[str(road) + '_' + str(i) for i in range(2) for road in agentroads[:4]] for agentroads in self.agents.values()]
         self.reset()
+
+    def _get_roadmask(self):
+        return
+
     def _get_info(self):
         info = {}
         if(self.info_enable == 0):
@@ -215,9 +219,7 @@ from utils.env_wrappers import SubprocVecEnv, DummyVecEnv
 def make_parallel_env(eng_config, n_rollout_threads, seed):
     def get_env_fn(rank):
         def init_env():
-            #env = make_env(env_id, discrete_action=True)
             env = MyEnv(eng_config)
-            
             env.seed(seed + rank * 1000)
             np.random.seed(seed + rank * 1000)
             return env
