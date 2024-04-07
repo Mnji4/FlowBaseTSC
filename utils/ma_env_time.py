@@ -3,8 +3,6 @@ from gym.logger import info
 import numpy as np
 import torch
 from env.myenv import MyEnv
-data = np.load('data1.npy', allow_pickle=True).item()
-cloest = data['cloest']
 class MaEnv(gym.Env):
     def __init__(self, env):
         self.env = env
@@ -16,7 +14,6 @@ class MaEnv(gym.Env):
         self.past_action = []
         for i in range(len(self.agentlist)):
             self.past_action.append([0 for _ in range(20)])
-        self.neighbor_inter = [cloest[o][1:] for o in cloest]
         self.att = 0
 
         
@@ -314,11 +311,8 @@ class MaEnv(gym.Env):
                 o = [0] * self.nagents
                 o[i] = 1
                 return o
-            obsi = onehot_a(past_action[-1:])+list(obs[i][:24])
-            #obsi = onehot_a(past_action[-1:])+list(obs[i][:24])+list(obs[i][36:48]/1000)+list(obs[i][48:56])#+list(obs[i][60:]/10)
-            
-            #obsi = onehot_a(past_action[-1:])+list(obs[i][:24])+list(obs[i][48:56])
-            #obsi = [i] + onehot(past_action[-1:] + neighbor_action) + list(obs[i])
+            obsi = onehot_a(past_action[-1:])+list(obs[i][:32])
+            # obsi = obs[i][:40]
             obs_n.append(obsi)
         obs_n = np.array(obs_n)
         return np.array(obs_n)
@@ -342,12 +336,12 @@ class MaEnv(gym.Env):
         #step
         #action = {self.agentlist[i]:(np.argmax(action_n[i]*np.array(mask[no_exist[i]]))+1) for i in range(self.nagents)}
 
-        action = {self.agentlist[i]:(np.argmax(action_n[i])+1) for i in range(self.nagents)}#
+        # action = np.argmax(action_n,1)
         for i in range(self.nagents):
             self.past_action[i] = self.past_action[i][1:] + [np.argmax(action_n[i])+1]
 
         #obs
-        obs, rwd, dones, infos = self.env.step(action)
+        obs, rwd, dones, infos = self.env.step(action_n)
         obs_n = self.process_obs(obs)
         #demand = self.process_demand(infos)
         #obs_n = np.concatenate((obs_n,demand),axis=1)
@@ -384,7 +378,7 @@ class MaEnv(gym.Env):
 
         extra_delay_index = -obs[:,36:48].sum(1)/10
         #print(extra_delay_index)
-        dones_n = np.array([o for o in list(dones.values())])
+        dones_n = dones
         pressure = obs[:,48:52].sum(1) - obs[:,:12].sum(1)
         queue = -obs[:,12:24].sum(1)
         #num_pass = infos-200
@@ -401,7 +395,7 @@ class MaEnv(gym.Env):
 
     def reset(self):
         # reset world
-        obs, infos = self.env.reset()
+        obs = self.env.reset()
         # obs, reward, dones, infos = self.env.step({})
         # print(sum(self.process_rwd(reward)))
         obs_n = self.process_obs(obs)
@@ -411,21 +405,19 @@ class MaEnv(gym.Env):
     def gen_cloest_agents(self):
         pass
 
-def make_env():
-    env = MyEnv('manhattan/config_1.json')
+def make_env(config_file):
+    env = MyEnv(config_file)
     return MaEnv(env)
 
 
 from utils.env_wrappers import SubprocVecEnv, DummyVecEnv
-def make_parallel_env(env_id, n_rollout_threads, seed):
+def make_parallel_env(eng_config, n_rollout_threads, seed):
     def get_env_fn(rank):
         def init_env():
-            #env = make_env(env_id, discrete_action=True)
-            env = make_env()
-            
+            env = MyEnv(eng_config)
             env.seed(seed + rank * 1000)
             np.random.seed(seed + rank * 1000)
-            return env
+            return MaEnv(env)
         return init_env
     if n_rollout_threads == 1:
         return DummyVecEnv([get_env_fn(0)])

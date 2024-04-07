@@ -11,14 +11,14 @@ class MyEnv(gym.Env):
         a = json.load(f)
         f.close()
         self.eng_config_file = eng_config_file
-        self.eng = cityflow.Engine(self.eng_config_file, thread_num=2)
+        self.eng = cityflow.Engine(self.eng_config_file, thread_num=1)
         self.eng.set_save_replay(True)
         self.reward_flag = 1
         self.pre_lane_vehicle = {}
         self.now_step = 0
         self.max_step = max_step
-        self.action_space = gym.spaces.Discrete(9)  # 动作空间
-        self.num_per_action = 1
+        self.action_space = gym.spaces.Discrete(8)  # 动作空间
+        self.seconds_per_step = 10
         self.redtime = 5
         self.info_enable = 0
         self.intersections = {}
@@ -110,7 +110,8 @@ class MyEnv(gym.Env):
         return pass_num
     
     def _get_reward(self, obs):
-        rwds = obs[:,24:28].sum(1)-obs[:,:12].sum(1)+0.0
+        rwds = -obs[:,12:24].sum(1)
+        # rwds = obs[:,24+8:28+8].sum(1)-obs[:,0+8:12+8].sum(1)
         # print(f'out cars{obs[:,24:28].sum()} in cars{obs[:,:12].sum()}')
         return rwds
 
@@ -122,12 +123,12 @@ class MyEnv(gym.Env):
         #vehicle_speed = self.eng.get_vehicle_speed()
         lane_waiting_vehicle_count = self.eng.get_lane_waiting_vehicle_count()
         lane_vehicle = self.eng.get_lane_vehicles()
-        vehicle_speed = self.eng.get_vehicle_speed()
+        # vehicle_speed = self.eng.get_vehicle_speed()
         vehicle_distance = self.eng.get_vehicle_distance()
 
 
         # add 1 dimension to give current step for fixed time agent
-        obs = np.full((len(self.agents),152),0)
+        obs = np.full((len(self.agents),120 + 32),0)
 
                 
         direction = ['turn_left','go_straight','turn_right']
@@ -174,8 +175,8 @@ class MyEnv(gym.Env):
             else:
                 self.eng.set_tl_phase(agent_id,0)
         #决策间隔小于红灯时间
-        if self.num_per_action <=self.redtime:
-            for t in range(self.num_per_action):
+        if self.seconds_per_step <=self.redtime:
+            for t in range(self.seconds_per_step):
                 self.eng.next_step()
         #决策间隔大于红灯时间
         else:
@@ -185,13 +186,13 @@ class MyEnv(gym.Env):
                 agent_id = self.agentlist[i]
                 self.eng.set_tl_phase(agent_id,phase)
 
-            for t in range(self.redtime,self.num_per_action):
+            for t in range(self.redtime,self.seconds_per_step):
                 self.eng.next_step()
-                if t == self.num_per_action:
+                if t == self.seconds_per_step:
                     if self.reward_flag:
                         self.reward += self._get_reward()
                     
-        self.now_step+=self.num_per_action
+        self.now_step+=self.seconds_per_step
         self.now_phases = action
     def step(self, action):
         # here action is a dict {agent_id:phase}
@@ -200,8 +201,10 @@ class MyEnv(gym.Env):
         dones = self._get_dones()
         obs = self._get_observations()
         reward = self._get_reward(obs)
+        onehot_acts = np.zeros((len(action), 8))
+        onehot_acts[np.arange(len(action)), action] = 1
+        obs = np.concatenate([onehot_acts,obs],1)
         info = {}#self._get_reward()self._get_info()
-
         if self.now_step == 3600:
             print('average time:{}'.format(self.eng.get_average_travel_time()))
         return obs, reward, dones , info
@@ -213,7 +216,10 @@ class MyEnv(gym.Env):
         #self.eng.reset()
         self.now_step = 0
         self.now_phases = np.full((len(self.agents)),-1)
-        return self._get_observations()
+        obs = self._get_observations()
+        onehot_acts = np.zeros((len(obs), 8))
+        obs = np.concatenate([onehot_acts,obs],1)
+        return obs
 
 from utils.env_wrappers import SubprocVecEnv, DummyVecEnv
 def make_parallel_env(eng_config, n_rollout_threads, seed):

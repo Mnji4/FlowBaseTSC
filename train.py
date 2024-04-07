@@ -44,12 +44,12 @@ if __name__ == '__main__':
     # When using many (e.g. 64) environments in parallel, having all of them be correlated can be an issue.
     # To avoid this, we estimate the mean episode length for this environment and then take i*(mean ep length/parallel envs count)
     # random steps in the i'th environment.
-    print(f'Creating', args.parallel_envs, 'and decorrelating environment instances. This may take up to a few minutes.. ', end='')
     decorr_steps = None
-    env = make_parallel_env('/home/zenianliang/DistiLight/config_hangzhou.json',2,42)
+    env = make_parallel_env('./config/config_jinan.json',2,42)
     num_intersection = len(env.agent_types)
     num_envs = env.num_envs
     args.parallel_envs = num_envs*num_intersection
+    print(f'Creating', num_envs, 'and decorrelating environment instances. This may take up to a few minutes.. ', end='')
     states = env.reset()
     states = states.reshape(num_intersection * num_envs,-1)
 
@@ -88,12 +88,15 @@ if __name__ == '__main__':
             # rainbow.reset_noise(rainbow.q_policy)
 
         # compute actions to take in all parallel envs, asynchronously start environment step
-        actions = rainbow.act(states, eps)
+        if(game_frame//360)%5<4:
+            actions = rainbow.act(states, explore = True)
+        else:
+            actions = rainbow.act(states, explore = False)
         actions = actions.reshape((num_envs,num_intersection))
         env.step_async(actions)
 
         # if training has started, perform args.train_count training steps, each on a batch of size args.batch_size
-        if rainbow.buffer.burnedin:
+        if rainbow.buffer.burnedin and game_frame%10 == 0:
             for train_iter in range(args.train_count):
                 if args.noisy_dqn and train_iter > 0: rainbow.reset_noise(rainbow.q_policy)
                 q, loss, grad_norm = rainbow.train(args.batch_size, beta=per_beta)
@@ -137,7 +140,7 @@ if __name__ == '__main__':
                 episode_count += 1
 
         if game_frame % (50_000-(50_000 % args.parallel_envs)) == 0:
-            print(f' [{game_frame:>8} frames, {episode_count:>5} episodes] running average return = {np.mean(returns)}')
+            # print(f' [{game_frame:>8} frames, {episode_count:>5} episodes] running average return = {np.mean(returns)}')
             torch.cuda.empty_cache()
 
         # every 1M frames, save a model checkpoint to disk and wandb

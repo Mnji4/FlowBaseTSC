@@ -1181,7 +1181,7 @@ class SingleCritic(nn.Module):
     observation and action, and can also attend over the other agents' encoded
     observations and actions.
     """
-    def __init__(self, sa_sizes, hidden_dim=32, norm_in=True, attend_heads=1):
+    def __init__(self, sa_sizes, hidden_dim=64, norm_in=True):
         """
         Inputs:
             sa_sizes (list of (int, int)): Size of state and action spaces per
@@ -1192,10 +1192,8 @@ class SingleCritic(nn.Module):
                                 that hidden_dim is divisible by)
         """
         super(SingleCritic, self).__init__()
-        assert (hidden_dim % attend_heads) == 0
         self.sa_sizes = sa_sizes
         self.nagents = len(sa_sizes)
-        self.attend_heads = attend_heads
 
         self.hidden_dim = hidden_dim
 

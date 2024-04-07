@@ -31,7 +31,7 @@ def read_args():
     parser.add_argument('--decorr', type=parse_bool, default=True, help='try to decorrelate state/progress in parallel envs')
 
     # environment settings
-    parser.add_argument('--env_name', type=str, default='gym:Qbert',
+    parser.add_argument('--env_name', type=str, default=' ',
                         help='the gym/procgen/retro environment name, should be either gym:[name], retro:[name] or procgen:[name]\n'
                              'some gym envs:   MsPacman, Phoenix, Breakout, Qbert, Amidar, SpaceInvaders, Assault\n'
                              'some retro envs: SuperMarioWorld-Snes, MortalKombat3-Genesis, SpaceMegaforce-Snes, SmashTV-Nes, AirBuster-Genesis, NewZealandStory-Genesis, Paperboy-Nes\n'
@@ -48,25 +48,25 @@ def read_args():
 
     # env preprocessing settings
     parser.add_argument('--frame_skip', type=int, default=None, help='use only every nth env frame (default is to use environment specific presets)')
-    parser.add_argument('--frame_stack', type=int, default=None, help='stack n frames (default is to use environment specific presets)')
+    parser.add_argument('--frame_stack', type=int, default=1, help='stack n frames (default is to use environment specific presets)')
     parser.add_argument('--grayscale', type=parse_bool, default=None, help='convert environment to grayscale (default is to use environment specific presets)')
     parser.add_argument('--resolution', type=int, default=None, help='environment resolution (default is to use environment specific presets)')
 
     # dqn settings
-    parser.add_argument('--buffer_size', type=int, default=int(2 ** 20), help='capacity of experience replay buffer (must be a power of two)')
-    parser.add_argument('--burnin', type=int, default=100, help='how many transitions should be in the buffer before start of training')
+    parser.add_argument('--buffer_size', type=int, default=int(2 ** 15), help='capacity of experience replay buffer (must be a power of two)')
+    parser.add_argument('--burnin', type=int, default=200, help='how many transitions should be in the buffer before start of training')
     parser.add_argument('--gamma', type=float, default=0.99, help='reward discount factor')
     parser.add_argument('--sync_dqn_target_every', type=int, default=24000, help='sync Q target net every n frames')
 
-    parser.add_argument('--batch_size', type=int, default=32, help='sample size when sampling from the replay buffer')
-    parser.add_argument('--parallel_envs', type=int, default=32, help='number of envs in the vectorized env')
-    parser.add_argument('--train_count', type=int, default=2, help='how often to train on a batch_size batch for every step (of the vectorized env)')
+    parser.add_argument('--batch_size', type=int, default=128, help='sample size when sampling from the replay buffer')
+    parser.add_argument('--parallel_envs', type=int, default=24, help='number of envs in the vectorized env')
+    parser.add_argument('--train_count', type=int, default=4, help='how often to train on a batch_size batch for every step (of the vectorized env)')
     parser.add_argument('--subproc_vecenv', type=parse_bool, default=True, help='whether to run each environment in it\'s own subprocess (always enabled for gym-retro)')
 
     # rainbow settings
     parser.add_argument('--network_arch', type=str, default='linear',
                         help='which model architecture to use for the q-network; one of "nature", "dueling", "impala_small", "impala_large:c" (c is the number of channels in impala large)')
-    parser.add_argument('--spectral_norm', type=str, default='all', help='where to use spectral norm in IMPALA-large residual blocks ("none", "last", "all")')
+    parser.add_argument('--spectral_norm', type=str, default='none', help='where to use spectral norm in IMPALA-large residual blocks ("none", "last", "all")')
     parser.add_argument('--double_dqn', type=parse_bool, default=False, help='whether to use the double-dqn TD-target')
     parser.add_argument('--prioritized_er', type=parse_bool, default=False, help='whether to use prioritized experience replay')
     parser.add_argument('--prioritized_er_beta0', type=float, default=0.45, help='importance sampling exponent for PER (0.4 for rainbow, 0.5 for dopamine)')
@@ -74,7 +74,7 @@ def read_args():
     parser.add_argument('--n_step', type=int, default=3, help='the n in n-step bootstrapping')
     parser.add_argument('--init_eps', type=float, default=1.0, help='initial dqn exploration epsilon (when not using noisy-nets)')
     parser.add_argument('--final_eps', type=float, default=0.01, help='final dqn exploration epsilon (when not using noisy-nets)')
-    parser.add_argument('--eps_decay_frames', type=int, default=500_000, help='exploration epsilon decay frames, 250_000 for rainbow paper, 1M for dopamine (when not using noisy-nets)')
+    parser.add_argument('--eps_decay_frames', type=int, default=5_000, help='exploration epsilon decay frames, 250_000 for rainbow paper, 1M for dopamine (when not using noisy-nets)')
     parser.add_argument('--noisy_dqn', type=parse_bool, default=False, help='whether to use noisy nets dqn')
     parser.add_argument('--noisy_sigma0', type=float, default=0.5, help='sigma_0 parameter for noisy nets dqn')
 
@@ -83,8 +83,8 @@ def read_args():
     parser.add_argument('--lr_decay_steps', type=int, default=None, help='learning rate is decayed every n game_steps (disabled by default)')
     parser.add_argument('--lr_decay_factor', type=float, default=None, help='factor by which lr is multiplied (disabled by default)')
     parser.add_argument('--adam_eps', type=float, default=None, help='epsilon for adam (0.00015 for rainbow paper/dopamine, 0.0003125 for DQN/procgen paper); default is to use 0.005/batch_size')
-    parser.add_argument('--max_grad_norm', type=float, default=10, help='gradient will be clipped to ensure its l2-norm is less than this')
-    parser.add_argument('--loss_fn', type=str, default='huber', help='loss function ("mse" or "huber")')
+    parser.add_argument('--max_grad_norm', type=float, default=10000, help='gradient will be clipped to ensure its l2-norm is less than this')
+    parser.add_argument('--loss_fn', type=str, default='mse', help='loss function ("mse" or "huber")')
 
     # gym-retro specific settings
     parser.add_argument('--retro_stickyprob', type=float, default=0.25, help='sticky-action probability in the StochasticFrameSkip wrapper')

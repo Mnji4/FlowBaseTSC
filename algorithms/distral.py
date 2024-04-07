@@ -7,9 +7,6 @@ from utils.critics import SingleCritic
 from utils.misc import onehot_from_logits, categorical_sample
 import numpy as np
 MSELoss = torch.nn.MSELoss()
-data = np.load('data1.npy', allow_pickle=True).item()
-cloest = data['cloest']
-mask = data['mask']
 
 class Distral(object):
     """
@@ -47,10 +44,8 @@ class Distral(object):
         #                               hidden_dim=pol_hidden_dim,
         #                               **params)
         #                  for params in agent_init_params]
-        self.critic = SingleCritic(sa_size[:5], hidden_dim=critic_hidden_dim,
-                                      attend_heads=attend_heads, norm_in = False)
-        self.target_critic = SingleCritic(sa_size[:5], hidden_dim=critic_hidden_dim,
-                                             attend_heads=attend_heads, norm_in = False)
+        self.critic = SingleCritic(sa_size[:5], hidden_dim=critic_hidden_dim, norm_in = False)
+        self.target_critic = SingleCritic(sa_size[:5], hidden_dim=critic_hidden_dim, norm_in = False)
         hard_update(self.target_critic, self.critic)
 
 
@@ -96,15 +91,15 @@ class Distral(object):
         with torch.no_grad():
             act = self.critic(critic_in, mask=mask_obs, return_all_q=False, return_act=True, explore=explore)
 
-
-        act = act.view(self.nagents,-1,self.a_dim)
+        act = torch.argmax(act, dim=1)
+        # act = act.view(self.nagents,-1,self.a_dim)
 
         # probs = self.critic(critic_in, mask=mask_obs, return_all_q=False, return_probs=True, explore=explore)        
         # probs = probs.view(self.nagents,-1,self.a_dim)
 
-        logits = self.critic(critic_in, mask=mask_obs, return_all_q=False, return_logits=True, explore=explore)        
-        logits = logits.view(self.nagents,-1,128)
-        return [act[i] for i in range(self.nagents)]
+        # logits = self.critic(critic_in, mask=mask_obs, return_all_q=False, return_logits=True, explore=explore)        
+        # logits = logits.view(self.nagents,-1,128)
+        return act.numpy()
         # return [act[i] for i in range(self.nagents)],[probs[i] for i in range(self.nagents)]
         #return [act[i] for i in range(self.nagents)],[logits[i] for i in range(self.nagents)]
     def update_critic(self, sample, soft=True, logger=None, **kwargs):

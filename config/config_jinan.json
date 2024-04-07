@@ -2,7 +2,7 @@
     "seed": 0, 
     "dir": "./", 
     "roadnetFile": "data/Jinan/3_4/roadnet_3_4.json", 
-    "flowFile": "data/Jinan/3_4/anon_3_4_jinan_real.json",
+    "flowFile": "data/Jinan/3_4/anon_3_4_jinan_real_2000.json",
     "rlTrafficLight": true, 
     "saveReplay": true, 
     "roadnetLogFile": "log.json", 

@@ -13,7 +13,7 @@ from torch.cuda.amp import GradScaler, autocast
 from common import networks
 from common.replay_buffer import UniformReplayBuffer, PrioritizedReplayBuffer
 from common.utils import prep_observation_for_qnet
-
+from utils.misc import onehot_from_logits, categorical_sample
 class Rainbow:
     buffer: Union[UniformReplayBuffer, PrioritizedReplayBuffer]
 
@@ -69,7 +69,7 @@ class Rainbow:
             if isinstance(m, networks.FactorizedNoisyLinear):
                 m.disable_noise()
 
-    def act(self, states, eps: float):
+    def act(self, states, explore = False):
         """ computes an epsilon-greedy step with respect to the current policy self.q_policy """
         with torch.no_grad():
             with autocast(enabled=self.use_amp):
@@ -77,12 +77,14 @@ class Rainbow:
                 # shape = states.shape
                 states = torch.from_numpy(states).cuda().float()
                 action_values = self.q_policy(states, advantages_only=True)
-                actions = torch.argmax(action_values, dim=1)
+                probs = torch.softmax(action_values, dim=1)
                 # actions = actions.reshape(shape[0],shape[1])
-            if eps > 0:
-                for i in range(actions.shape[0]):
-                    if random.random() < eps:
-                        actions[i] = self.env.action_space.sample()
+                if explore:
+                    int_acs, onehot__acs = categorical_sample(probs, use_cuda=True) # epsilon_greedy(self.epsilon, probs, use_cuda=on_gpu) 
+                    actions = int_acs.flatten()
+                else:
+                    actions = torch.argmax(probs, dim=1)
+                        
             return actions.cpu().numpy()
 
     @torch.no_grad()

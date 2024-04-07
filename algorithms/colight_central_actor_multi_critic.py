@@ -190,7 +190,7 @@ class AttentionSAC(object):
         if soft:
             pol_loss = (log_pis * (log_pis / self.reward_scale - pol_target).detach()).mean()
         else:
-            pol_loss = (log_pi * (-pol_target).detach()).mean()
+            pol_loss = (log_pis * (-pol_target).detach()).mean()
         pol_loss += 1e-3 * pol_regs[0]  # policy regularization
 
         # for a_i, probs, log_pi, pol_regs, (q, all_q) in zip(range(self.nagents), all_probs,
