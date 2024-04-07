@@ -1,5 +1,7 @@
 import gym
 import numpy as np
+import sys
+sys.path.append('/home/zenianliang/CityFlow/dist/CityFlow-0.1.1-py3.7-linux-x86_64.egg')
 import cityflow
 import json
 import random
@@ -125,8 +127,7 @@ class MyEnv(gym.Env):
         lane_vehicle = self.eng.get_lane_vehicles()
         # vehicle_speed = self.eng.get_vehicle_speed()
         vehicle_distance = self.eng.get_vehicle_distance()
-
-
+        effective_count = self.eng.get_lane_effective_vehicle_count(111.11)
         # add 1 dimension to give current step for fixed time agent
         obs = np.full((len(self.agents),120 + 32),0)
 
@@ -143,13 +144,13 @@ class MyEnv(gym.Env):
                     obs[ai][movement+12] = 0
                 for lanei in lanes:
                     lane = roadlink['startRoad']+'_'+str(lanei)
-                    obs[ai][movement] += lane_vehicle_count[lane]
+                    obs[ai][movement] += lane_vehicle_count[lane] - lane_waiting_vehicle_count[lane]
                     obs[ai][movement+12] += lane_waiting_vehicle_count[lane]
                     for v in lane_vehicle[lane]:
                         distance = self.roads[roadlink['startRoad']]['length'] - vehicle_distance[v]
-                        if distance < 111:
-                            cell = int(distance//11.111)
-                            obs[ai][32+movement*10+cell] += 1
+                        # if distance < 111:
+                            # cell = int(distance//11.111)
+                            # obs[ai][32+movement*10+cell] += 1
                     
             for i,endroad in enumerate(roads[4:]):
                 if obs[ai][i+24] == -1:
@@ -160,7 +161,17 @@ class MyEnv(gym.Env):
                     lane = endroad+'_'+str(lanei)
                     obs[ai][i+24] += lane_vehicle_count[lane]
                     obs[ai][i+28] += lane_waiting_vehicle_count[lane]
+            
         return obs
+
+    def _cal_effective_cars(self):
+        return
+
+    def _count_movement_pressure(self):
+        return
+    
+    def _count_effective_running(self):
+        return
 
     def _get_dones(self):
         dones = np.full((len(self.agents)),self.now_step > self.max_step)
