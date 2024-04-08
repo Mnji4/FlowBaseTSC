@@ -88,7 +88,7 @@ if __name__ == '__main__':
             # rainbow.reset_noise(rainbow.q_policy)
 
         # compute actions to take in all parallel envs, asynchronously start environment step
-        if(game_frame//360)%5<4:
+        if(game_frame//(3600/env.seconds_per_step))%5<4:
             actions = rainbow.act(states, explore = True)
         else:
             actions = rainbow.act(states, explore = False)

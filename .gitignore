@@ -5,3 +5,5 @@ checkpoints/
 models/
 wandb/
 log.*
+CityFlow/build/
+CityFlow/CityFlow.egg-info/

@@ -22,7 +22,7 @@ def read_args():
                                      formatter_class=argparse.RawTextHelpFormatter)
 
     # training settings
-    parser.add_argument('--training_frames', type=int, default=10_000_000, help='train for n environment interactions ("game_frames" in the code)')
+    parser.add_argument('--training_frames', type=int, default=1_000_000, help='train for n environment interactions ("game_frames" in the code)')
     parser.add_argument('--record_every', type=int, default=60*50, help='wait at least x seconds between episode recordings (default is to use environment specific presets)')
     parser.add_argument('--seed', type=int, default=0, help='seed for pytorch, numpy, environments, random')
     parser.add_argument('--use_wandb', type=parse_bool, default=False, help='whether use "weights & biases" for tracking metrics, video recordings and model checkpoints')

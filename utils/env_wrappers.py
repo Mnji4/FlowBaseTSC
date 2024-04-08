@@ -32,6 +32,8 @@ def worker(remote, parent_remote, env_fn_wrapper):
                              env.agents])
             else:
                 remote.send(['agent' for _ in env.agents])
+        elif cmd == 'get_seconds_per_step':   
+            remote.send((env.seconds_per_step))     
         else:
             raise NotImplementedError
 
@@ -57,6 +59,8 @@ class SubprocVecEnv(VecEnv):
         observation_space, action_space = self.remotes[0].recv()
         self.remotes[0].send(('get_agent_types', None)) 
         self.agent_types = self.remotes[0].recv()
+        self.remotes[0].send(('get_seconds_per_step', None)) 
+        self.seconds_per_step = self.remotes[0].recv()
         VecEnv.__init__(self, len(env_fns), observation_space, action_space)
 
     def step_async(self, actions):

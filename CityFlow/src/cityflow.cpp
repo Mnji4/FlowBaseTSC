@@ -19,6 +19,7 @@ PYBIND11_MODULE(cityflow, m) {
         .def("get_lane_vehicle_count", &CityFlow::Engine::getLaneVehicleCount)
         .def("get_lane_waiting_vehicle_count", &CityFlow::Engine::getLaneWaitingVehicleCount)
         .def("get_lane_effective_vehicle_count", &CityFlow::Engine::getLaneEffectiveVehicleCount, "range"_a)
+        .def("get_lane_effective_waiting_vehicle_count", &CityFlow::Engine::getLaneEffectiveWaitingVehicleCount, "range"_a)
         .def("get_lane_vehicles", &CityFlow::Engine::getLaneVehicles)
         .def("get_vehicle_speed", &CityFlow::Engine::getVehicleSpeed)
         .def("get_vehicle_info", &CityFlow::Engine::getVehicleInfo, "vehicle_id"_a)
