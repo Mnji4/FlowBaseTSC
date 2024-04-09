@@ -154,6 +154,8 @@ namespace CityFlow {
 
         std::map<std::string, std::vector<std::string>> getLaneVehicles();
 
+        std::map<std::string, std::vector<std::string>> getLaneEffectiveVehicles(double range);
+
         std::map<std::string, double> getVehicleSpeed() const;
 
         std::map<std::string, double> getVehicleDistance() const;

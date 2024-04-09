@@ -1,7 +1,7 @@
 import gym
 import numpy as np
 import sys
-sys.path.append('/home/zenianliang/CityFlow/dist/CityFlow-0.1.1-py3.7-linux-x86_64.egg')
+sys.path.append('CityFlow/dist/CityFlow-0.1.1-py3.7-linux-x86_64.egg')
 import cityflow
 import json
 import random
@@ -85,6 +85,14 @@ class MyEnv(gym.Env):
                     self.pre_lane_vehicle[lane] = set()
         
         self.agent_lane = [[str(road) + '_' + str(i) for i in range(2) for road in agentroads[:4]] for agentroads in self.agents.values()]
+        
+        self.lane_to_agenti = {}
+        for k,v in self.roads.items():
+            if v['end_inter'] not in self.agentlist:
+                continue
+            for i in range(3):
+                self.lane_to_agenti[f"{k}_{i}"] = self.agentlist.index(v['end_inter'])
+                
         self.reset()
     
     def _get_roadmask(self):
@@ -113,21 +121,27 @@ class MyEnv(gym.Env):
         return pass_num
     
     def _get_reward(self):
-        rwds = -self.queue
+        rwds = -self.effective_pressure
         return rwds
 
-        
-
-    def _get_observations(self):
-        # return self.eng.get_lane_vehicle_count()
-        lane_vehicle_count = self.eng.get_lane_vehicle_count()
+    def _update_common_state(self):
+        self.lane_vehicle_count = self.eng.get_lane_vehicle_count()
         #vehicle_speed = self.eng.get_vehicle_speed()
-        lane_waiting_vehicle_count = self.eng.get_lane_waiting_vehicle_count()
-        # lane_vehicle = self.eng.get_lane_vehicles()
+        self.lane_waiting_vehicle_count = self.eng.get_lane_waiting_vehicle_count()
+        self.lane_vehicle = self.eng.get_lane_vehicles()
         # vehicle_speed = self.eng.get_vehicle_speed()
         # vehicle_distance = self.eng.get_vehicle_distance()
-        effective_count = self.eng.get_lane_effective_vehicle_count(111.11)
-        effective_waiting_count = self.eng.get_lane_effective_waiting_vehicle_count(111.11)
+        self.effective_count = self.eng.get_lane_effective_vehicle_count(110)
+        self.effective_waiting_count = self.eng.get_lane_effective_waiting_vehicle_count(110)
+        self.effective_vehicles = self.eng.get_lane_effective_vehicles(110)
+    
+    def _update_vehicle_intersection(self):
+        for lane,vehicles in self.effective_vehicles.items():
+            if lane not in self.lane_to_agenti: continue
+            for vehicle in vehicles:
+                self.vehicle_last_agenti[vehicle] = self.lane_to_agenti[lane]
+            
+    def _get_observations(self):
         # add 1 dimension to give current step for fixed time agent
         obs = np.full((len(self.agents),self.observation_space.shape[1]),0)
         self.pressure = np.zeros(len(self.agents))
@@ -145,17 +159,17 @@ class MyEnv(gym.Env):
                     obs[ai][movement+12] = 0
                 
                 # effective running 
-                obs[ai][movement] += effective_count[inlane] - effective_waiting_count[inlane]
+                obs[ai][movement] += self.effective_count[inlane] - self.effective_waiting_count[inlane]
                 # effective pressure
-                obs[ai][movement+12] = -effective_waiting_count[inlane]
-                self.pressure[ai] += lane_vehicle_count[inlane]
-                self.queue[ai] += lane_waiting_vehicle_count[inlane]
+                obs[ai][movement+12] = +self.effective_waiting_count[inlane]
+                self.pressure[ai] += self.lane_vehicle_count[inlane]
+                self.queue[ai] += self.lane_waiting_vehicle_count[inlane]
                 for outlanei in range(3):
                     outlane = f"{roadlink['endRoad']}_{outlanei}"
-                    obs[ai][movement+12] += effective_waiting_count[outlane]/3
-                    self.pressure[ai]  -= lane_vehicle_count[outlane]
+                    obs[ai][movement+12] -= self.effective_waiting_count[outlane]/3
+                    self.pressure[ai]  -= self.lane_vehicle_count[outlane]
                 
-                
+        self.effective_pressure = obs[:,12:].sum(1)
         onehot_acts = np.zeros((len(self.agents), 8))
         if self.last_action is not None:
             onehot_acts[np.arange(len(self.agents)), self.last_action] = 1  
@@ -198,6 +212,7 @@ class MyEnv(gym.Env):
         self.now_phases = action
     def step(self, action):
         # here action is a dict {agent_id:phase}
+        self._update_common_state()
         self.last_action = action
         self.reward = np.zeros(len(self.agentlist))
         self.run_whole_phase(action)
@@ -205,6 +220,7 @@ class MyEnv(gym.Env):
         obs = self._get_observations()
         reward = self._get_reward()
         info = {}#self._get_reward()self._get_info()
+        self._update_vehicle_intersection()
         if self.now_step == 3600:
             print('average time:{}'.format(self.eng.get_average_travel_time()))
         return obs, reward, dones , info
@@ -214,8 +230,10 @@ class MyEnv(gym.Env):
         for t in range(random.randint(0,20)):
             self.eng.next_step()
         #self.eng.reset()
+        self.vehicle_last_agenti = {}
         self.now_step = 0
         self.now_phases = np.full((len(self.agents)),-1)
+        self._update_common_state()
         obs = self._get_observations()
         return obs
 

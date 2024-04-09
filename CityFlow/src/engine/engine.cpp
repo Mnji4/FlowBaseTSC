@@ -689,6 +689,20 @@ namespace CityFlow {
         return ret;
     }
 
+    std::map<std::string, std::vector<std::string>> Engine::getLaneEffectiveVehicles(double range) {
+        std::map<std::string, std::vector<std::string>> ret;
+        for (const Lane *lane : roadnet.getLanes()) {
+            std::vector<std::string> vehicles;
+            int lane_length = lane->getLength();
+            for (Vehicle *vehicle : lane->getVehicles()) {
+                if (lane_length - vehicle->getDistance() > range) continue;
+                vehicles.push_back(vehicle->getId());
+            }
+            ret.emplace(lane->getId(), vehicles);
+        }
+        return ret;
+    }
+
     std::map<std::string, double> Engine::getVehicleSpeed() const {
         std::map<std::string, double> ret;
         for (const Vehicle* vehicle : getRunningVehicles()) {
