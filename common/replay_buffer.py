@@ -62,6 +62,52 @@ class UniformReplayBuffer:
     def __len__(self):
         return len(self.buffer)
 
+class WeightedReplayBuffer:
+    def __init__(self, burnin, capacity, gamma, n_step, parallel_envs, use_amp):
+        self.capacity = capacity
+        self.burnin = burnin
+        self.buffer = []
+        self.nextwrite = 0
+        self.use_amp = use_amp
+
+        self.gamma = gamma
+        self.n_step = n_step
+        self.n_step_buffers = [collections.deque(maxlen=self.n_step + 1) for j in range(parallel_envs)]
+
+    def put(self, *transition, j): # n-step transition can't start with terminal state
+            state = self.n_step_buffers[j][0][0]
+            action = self.n_step_buffers[j][0][1]
+            next_state = self.n_step_buffers[j][self.n_step][0]
+            done = self.n_step_buffers[j][self.n_step][3]
+            reward = self.n_step_buffers[j][0][2]
+
+
+            action = torch.LongTensor(np.array([action])).cuda()
+            reward = torch.FloatTensor(np.array([reward])).cuda()
+            done = torch.FloatTensor(np.array([done])).cuda()
+
+            if len(self.buffer) < self.capacity:
+                self.buffer.append((state, next_state, action, reward, done))
+            else:
+                self.buffer[self.nextwrite % self.capacity] = (state, next_state, action, reward, done)
+                self.nextwrite += 1
+
+    def sample(self, batch_size, beta=None):
+        """ Sample a minibatch from the ER buffer (also converts the FrameStacked LazyFrames to contiguous tensors) """
+        batch = random.sample(self.buffer, batch_size)
+        state, next_state, action, reward, done = zip(*batch)
+        state = list(map(lambda x: torch.from_numpy(x.__array__()), state))
+        next_state = list(map(lambda x: torch.from_numpy(x.__array__()), next_state))
+
+        state, next_state, action, reward, done = map(torch.stack, [state, next_state, action, reward, done])
+        return state.cuda().float(), next_state.cuda().float(), \
+               action.squeeze(), reward.squeeze(), done.squeeze()
+    @property
+    def burnedin(self):
+        return len(self) >= self.burnin
+
+    def __len__(self):
+        return len(self.buffer)
 
 class PrioritizedReplayBuffer:
     """ based on https://nn.labml.ai/rl/dqn, supports n-step bootstrapping and parallel environments,

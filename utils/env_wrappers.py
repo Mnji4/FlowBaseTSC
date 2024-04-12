@@ -109,7 +109,7 @@ class DummyVecEnv(VecEnv):
             self.agent_types = ['agent' for _ in env.agents]
         self.ts = np.zeros(len(self.envs), dtype='int')        
         self.actions = None
-
+        self.seconds_per_step = env.seconds_per_step
     def step_async(self, actions):
         self.actions = actions
 

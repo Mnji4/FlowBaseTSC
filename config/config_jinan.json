@@ -4,7 +4,7 @@
     "roadnetFile": "data/Jinan/3_4/roadnet_3_4.json", 
     "flowFile": "data/Jinan/3_4/anon_3_4_jinan_real.json",
     "rlTrafficLight": true, 
-    "saveReplay": true, 
+    "saveReplay": false, 
     "roadnetLogFile": "log.json", 
     "replayLogFile": "log.txt"
 }

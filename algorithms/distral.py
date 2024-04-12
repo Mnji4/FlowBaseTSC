@@ -8,6 +8,7 @@ from utils.misc import onehot_from_logits, categorical_sample
 import numpy as np
 MSELoss = torch.nn.MSELoss()
 
+
 class Distral(object):
     """
     Wrapper class for SAC agents with central attention critic in multi-agent
@@ -44,8 +45,10 @@ class Distral(object):
         #                               hidden_dim=pol_hidden_dim,
         #                               **params)
         #                  for params in agent_init_params]
-        self.critic = SingleCritic(sa_size[:5], hidden_dim=critic_hidden_dim, norm_in = False)
-        self.target_critic = SingleCritic(sa_size[:5], hidden_dim=critic_hidden_dim, norm_in = False)
+        self.critic = SingleCritic(sa_size[:5], hidden_dim=critic_hidden_dim,
+                                       norm_in = False)
+        self.target_critic = SingleCritic(sa_size[:5], hidden_dim=critic_hidden_dim,
+                                              norm_in = False)
         hard_update(self.target_critic, self.critic)
 
 
@@ -91,15 +94,15 @@ class Distral(object):
         with torch.no_grad():
             act = self.critic(critic_in, mask=mask_obs, return_all_q=False, return_act=True, explore=explore)
 
-        act = torch.argmax(act, dim=1)
-        # act = act.view(self.nagents,-1,self.a_dim)
+
+        act = act.view(self.nagents,-1,self.a_dim)
 
         # probs = self.critic(critic_in, mask=mask_obs, return_all_q=False, return_probs=True, explore=explore)        
         # probs = probs.view(self.nagents,-1,self.a_dim)
 
-        # logits = self.critic(critic_in, mask=mask_obs, return_all_q=False, return_logits=True, explore=explore)        
-        # logits = logits.view(self.nagents,-1,128)
-        return act.numpy()
+        logits = self.critic(critic_in, mask=mask_obs, return_all_q=False, return_logits=True, explore=explore)        
+        logits = logits.view(self.nagents,-1,128)
+        return [act[i] for i in range(self.nagents)]
         # return [act[i] for i in range(self.nagents)],[probs[i] for i in range(self.nagents)]
         #return [act[i] for i in range(self.nagents)],[logits[i] for i in range(self.nagents)]
     def update_critic(self, sample, soft=True, logger=None, **kwargs):
@@ -174,10 +177,8 @@ class Distral(object):
         self.niter += 1
 
     # this is the SQL part for each task specific policy
-    def optimize_model(self, sample, policy):
+    def optimize_model(self, sample):
         gamma=0.999
-        alpha=0.#0.8
-        beta=5
         obs, acs, rews, next_obs, dones, times = sample
         # Compute a mask of non-final states and concatenate the batch elements
         # non_final_mask = torch.ByteTensor(tuple(map(lambda s: s is not None,
@@ -193,14 +194,8 @@ class Distral(object):
         action_batch = acs#torch.Tensor(acs[0])
         reward_batch1 = rews#torch.Tensor(rews[0])
         # calculate pi_i
-        term = self.critic(state_batch, return_all_q = True)
-        max_term = torch.max(term, 1)[0].unsqueeze(1)
-        pi_i = torch.exp(term-max_term)/(torch.exp(term-max_term).sum(1).unsqueeze(1))
-        #pi_i = torch.softmax(term,1)
         # reg rewards
-        reward_batch = (reward_batch1[0].unsqueeze(1) +
-                        (alpha/beta)*torch.log(policy.forward(state_batch,return_probs = True).gather(1, action_batch[0].argmax(dim = 1,keepdim = True))+1e-16 )
-                        )#- (1/beta)*torch.log(pi_i.gather(1, action_batch[0].argmax(dim = 1,keepdim = True))+1e-16 )
+        reward_batch = reward_batch1[0].unsqueeze(1) #- (1/beta)*torch.log(pi_i.gather(1, action_batch[0].argmax(dim = 1,keepdim = True))+1e-16 )
         if torch.any(reward_batch==float('-inf')):
             print('reward_batch inf')
 
@@ -224,7 +219,10 @@ class Distral(object):
 
         # Compute MSE loss
         loss = F.mse_loss(state_action_values, expected_state_action_values.detach())
-
+        if(np.random.randint(0,100)<10):
+            print(state_action_values.detach().mean().item(),
+                    expected_state_action_values.detach().mean().item())
+            print(loss.item())
         # Optimize the model
         self.critic_optimizer.zero_grad()
         loss.backward()
@@ -336,7 +334,7 @@ class Distral(object):
     def init_from_env(cls, env, s_dim,a_dim, n_agent ,gamma=0.95, tau=0.01,
                       pi_lr=0.01, q_lr=0.01,
                       reward_scale=10.,
-                      pol_hidden_dim=128, critic_hidden_dim=128, attend_heads=4,
+                      pol_hidden_dim=128, critic_hidden_dim=128,
                       **kwargs):
         """
         Instantiate instance of this class from multi-agent environment
@@ -363,7 +361,6 @@ class Distral(object):
                      'reward_scale': reward_scale,
                      'pol_hidden_dim': pol_hidden_dim,
                      'critic_hidden_dim': critic_hidden_dim,
-                     'attend_heads': attend_heads,
                      'agent_init_params': agent_init_params,
                      'sa_size': sa_size}
         instance = cls(**init_dict)

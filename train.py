@@ -45,7 +45,7 @@ if __name__ == '__main__':
     # To avoid this, we estimate the mean episode length for this environment and then take i*(mean ep length/parallel envs count)
     # random steps in the i'th environment.
     decorr_steps = None
-    env = make_parallel_env('./config/config_jinan.json',2,42)
+    env = make_parallel_env('./config/config_jinan.json',2,36)
     num_intersection = len(env.agent_types)
     num_envs = env.num_envs
     args.parallel_envs = num_envs*num_intersection
@@ -68,7 +68,6 @@ if __name__ == '__main__':
     q_values = deque(maxlen=10)
     grad_norms = deque(maxlen=10)
     iter_times = deque(maxlen=10)
-    reward_density = 0
 
     returns_all = []
     q_values_all = []
@@ -117,7 +116,6 @@ if __name__ == '__main__':
         rewards = rewards.reshape(num_envs*num_intersection)
         dones = dones.reshape(num_envs*num_intersection)
         for state, action, reward, done, j in zip(states, actions, rewards, dones, range(args.parallel_envs)):
-            reward_density = 0.999 * reward_density + (1 - 0.999) * (reward != 0)
             rainbow.buffer.put(state, action, reward, done, j=j)
         states = next_states
 
@@ -131,7 +129,7 @@ if __name__ == '__main__':
 
                 log = {'x/game_frame': game_frame + j, 'x/episode': episode_count, 'grad_norm': np.mean(grad_norms),
                        'mean_loss': np.mean(losses), 'mean_q_value': np.mean(q_values), 'fps': args.parallel_envs / np.mean(iter_times),
-                       'lr': rainbow.opt.param_groups[0]['lr'], 'reward_density': reward_density}
+                       'lr': rainbow.opt.param_groups[0]['lr']}
                 if args.prioritized_er: log['per_beta'] = per_beta
                 if eps > 0: log['epsilon'] = eps
 

@@ -12,6 +12,7 @@ class MaEnv(gym.Env):
         self.speedlimit = {o:self.env.roads[o]['speed_limit'] for o in self.env.roads}
         self.nagents = len(self.agentlist)
         self.past_action = []
+        self.seconds_per_step = self.env.seconds_per_step
         for i in range(len(self.agentlist)):
             self.past_action.append([0 for _ in range(20)])
         self.att = 0
@@ -292,30 +293,33 @@ class MaEnv(gym.Env):
 
     def process_obs(self, obs):
 
-        obs_n = []
-        for i in range(self.nagents):
-            obsi = []
+        # obs_n = []
+        # for i in range(self.nagents):
+        #     obsi = []
 
-            # 前5个动作
+        #     # 前5个动作
 
-            past_action = self.past_action[i]
-            def onehot_a(l):
-                r = []
-                for i in l:
-                    o = [0] * 8
-                    if i > 0:
-                        o[i-1] = 1
-                    r = r + o
-                return r
-            def onehot_o(i):
-                o = [0] * self.nagents
-                o[i] = 1
-                return o
-            obsi = onehot_a(past_action[-1:])+list(obs[i][:32])
-            # obsi = obs[i][:40]
-            obs_n.append(obsi)
-        obs_n = np.array(obs_n)
-        return np.array(obs_n)
+        #     past_action = self.past_action[i]
+        #     def onehot_a(l):
+        #         r = []
+        #         for i in l:
+        #             o = [0] * 8
+        #             if i > 0:
+        #                 o[i-1] = 1
+        #             r = r + o
+        #         return r
+        #     def onehot_o(i):
+        #         o = [0] * self.nagents
+        #         o[i] = 1
+        #         return o
+        #     obsi = onehot_a(past_action[-1:])+list(obs[i][:24])
+        #     #obsi = onehot_a(past_action[-1:])+list(obs[i][:24])+list(obs[i][36:48]/1000)+list(obs[i][48:56])#+list(obs[i][60:]/10)
+            
+        #     #obsi = onehot_a(past_action[-1:])+list(obs[i][:24])+list(obs[i][48:56])
+        #     #obsi = [i] + onehot(past_action[-1:] + neighbor_action) + list(obs[i])
+        #     obs_n.append(obsi)
+        # obs_n = np.array(obs_n)
+        return np.array(obs)
 
 
     def process_rwd(self, rwd):
@@ -336,12 +340,12 @@ class MaEnv(gym.Env):
         #step
         #action = {self.agentlist[i]:(np.argmax(action_n[i]*np.array(mask[no_exist[i]]))+1) for i in range(self.nagents)}
 
-        # action = np.argmax(action_n,1)
+        action = np.argmax(action_n,1)#
         for i in range(self.nagents):
             self.past_action[i] = self.past_action[i][1:] + [np.argmax(action_n[i])+1]
 
         #obs
-        obs, rwd, dones, infos = self.env.step(action_n)
+        obs, rwd, dones, infos = self.env.step(action)
         obs_n = self.process_obs(obs)
         #demand = self.process_demand(infos)
         #obs_n = np.concatenate((obs_n,demand),axis=1)
@@ -384,13 +388,11 @@ class MaEnv(gym.Env):
         #num_pass = infos-200
         delay = -obs[:,24:36].sum(1)/100
 
-        reward_n = queue
-        infos_n = [(queue, extra_delay_index),()]# 
+        reward_n = rwd
+        infos_n = []# 
         #infos_n = [(queue, 0),()]# 
         #infos = np.array((queue,extra_delay_index)).T
 
-        if self.env.now_step == 3600:
-            infos_n[1] = infos
         return obs_n, reward_n, dones_n, infos_n
 
     def reset(self):
@@ -411,13 +413,15 @@ def make_env(config_file):
 
 
 from utils.env_wrappers import SubprocVecEnv, DummyVecEnv
-def make_parallel_env(eng_config, n_rollout_threads, seed):
+def make_parallel_env(config_file, n_rollout_threads, seed):
     def get_env_fn(rank):
         def init_env():
-            env = MyEnv(eng_config)
+            #env = make_env(env_id, discrete_action=True)
+            env = make_env(config_file)
+            
             env.seed(seed + rank * 1000)
             np.random.seed(seed + rank * 1000)
-            return MaEnv(env)
+            return env
         return init_env
     if n_rollout_threads == 1:
         return DummyVecEnv([get_env_fn(0)])
