@@ -2,19 +2,15 @@ import argparse
 import torch
 import os
 import numpy as np
-from gym.spaces import Box, Discrete
 from pathlib import Path
-from torch.autograd import Variable
-from tensorboardX import SummaryWriter
 from utils.buffer import ReplayBufferTime
 # from algorithms.attention_sac1 import AttentionSAC
 #from algorithms.attention_ppo1 import AttentionPPO
 from algorithms.distral import Distral
-import gym
 import json
 from utils.ma_env_time import MaEnv,make_env,make_parallel_env
-
-
+from tqdm import trange
+import cProfile
 def run(config, start = 0):
     #count_cloest()
     best_rew = 0
@@ -76,46 +72,47 @@ def run(config, start = 0):
 
 
     t = 0
-    
-    for ep_i in range(start, config.n_episodes, config.n_rollout_threads):
+    for i in range(config.n_rollout_threads):
+        if config.use_gpu:
+            model[i].prep_rollouts(device='cuda')
+        else:
+            model[i].prep_rollouts(device='cpu')
+    for ep_i in trange(start, config.n_episodes, config.n_rollout_threads):
         if ep_i % config.test_interval < config.n_rollout_threads and start != ep_i:
             print('testing policies')
             obs = env.reset()
             for test_t in range(0,3600,env.seconds_per_step):
-                torch_obs = [torch.Tensor(ob) for ob in obs]
+                torch_obs = [torch.Tensor(ob).cuda() for ob in obs]
                 # get actions as torch Variables
                 #[thread,agent,act]
-                actions = [model[i].step([torch_obs[i]], explore=False)[0] for i in range(config.n_rollout_threads)]
+                actions = [model[i].step(torch_obs[i], explore=False)[0] for i in range(config.n_rollout_threads)]
 
                 # rearrange actions to be per environment
                 #[thread,agent,act]
-                actions = [a.numpy() for a in actions]
+                actions = [a.cpu().numpy() for a in actions]
                 next_obs, rewards, dones, infos = env.step(actions)
                 obs = next_obs
 
 
-        if ep_i >100:
-            for i in range(config.n_rollout_threads):
-                model[i].critic.epsilon = 0.99
         print("Episodes %i-%i of %i" % (ep_i + 1,
                                         ep_i + 1 + config.n_rollout_threads,
                                         config.n_episodes))
         obs = env.reset()
-        
+
         for et_i in range(0,config.episode_length,env.seconds_per_step):
             #[agent,thread,obs]
             # torch_obs = [Variable(torch.Tensor(np.vstack(obs[:, i])),
             #                       requires_grad=False)
             #              for i in range(config.n_agent)]
             #[thread,agent,obs]
-            torch_obs = [torch.Tensor(ob) for ob in obs]
+            torch_obs = [torch.Tensor(ob).cuda() for ob in obs]
             # get actions as torch Variables
             #[thread,agent,act]
-            actions = [model[i].step([torch_obs[i]], explore=True)[0] for i in range(config.n_rollout_threads)]
+            actions = [model[i].step(torch_obs[i], explore=True)[0] for i in range(config.n_rollout_threads)]
 
             # rearrange actions to be per environment
             #[thread,agent,act]
-            actions = [a.numpy() for a in actions]
+            actions = [a.cpu().numpy() for a in actions]
             next_obs, rewards, dones, infos = env.step(actions)
 
             #分配各个option的经历
@@ -138,7 +135,7 @@ def run(config, start = 0):
                 for i in range(config.n_rollout_threads):
 
                     if config.use_gpu:
-                        model[i].prep_training(device='gpu')
+                        model[i].prep_training(device='cuda')
                     else:
                         model[i].prep_training(device='cpu')
                     for u_i in range(config.num_updates):
@@ -146,7 +143,10 @@ def run(config, start = 0):
                                                     to_gpu=config.use_gpu)
                         model[i].optimize_model(sample)#model[0]
                         model[i].update_all_targets()
-                    model[i].prep_rollouts(device='cpu')
+                    if config.use_gpu:
+                        model[i].prep_rollouts(device='cuda')
+                    else:
+                        model[i].prep_rollouts(device='cpu')
                 
 
 
@@ -169,7 +169,7 @@ if __name__ == '__main__':
                              "model/training contents")
     parser.add_argument("--dqn", default=1, type=int)
     parser.add_argument("--n_agent", default=1, type=int)
-    parser.add_argument("--test_interval", default=5, type=int)
+    parser.add_argument("--test_interval", default=10, type=int)
     parser.add_argument("--n_rollout_threads", default=1, type=int)
     parser.add_argument("--buffer_length", default=int(1e5), type=int)
     parser.add_argument("--n_episodes", default=200, type=int)
@@ -192,7 +192,7 @@ if __name__ == '__main__':
     parser.add_argument("--tau", default=0.001, type=float)
     parser.add_argument("--gamma", default=0.99, type=float)
     parser.add_argument("--reward_scale", default=100., type=float)
-    parser.add_argument("--use_gpu", action='store_true')
+    parser.add_argument("--use_gpu", default=True, action='store_true')
 
     parser.add_argument("--log_num",default=0, type=int)
     parser.add_argument("--load_model", default=False, type=bool)
@@ -200,5 +200,5 @@ if __name__ == '__main__':
     parser.add_argument("--meta_model_path", default='/start/manhattan/models/Distral/test/run109/')
     parser.add_argument("--env_config", default='./config/config_jinan.json')
     config = parser.parse_args()
-
     run(config, 0)
+    # cProfile.run("")

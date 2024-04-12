@@ -1,10 +1,10 @@
 {"interval": 1.0, 
     "seed": 0, 
     "dir": "./", 
-    "roadnetFile": "manhattan/roadnet_28_7.json", 
-    "flowFile": "manhattan/anon_28_7_newyork_real_triple.json", 
+    "roadnetFile": "data/196/roadnet_28_7.json", 
+    "flowFile": "data/196/anon_16_1_300_newyork_real_2_double.json", 
     "rlTrafficLight": true, 
     "saveReplay": true, 
-    "roadnetLogFile": "manhattan/log.json", 
-    "replayLogFile": "manhattan/log.txt"
+    "roadnetLogFile": "log.json", 
+    "replayLogFile": "log.txt"
 }

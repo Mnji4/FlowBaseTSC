@@ -5,6 +5,6 @@
     "flowFile": "manhattan/manhattan_21430.json", 
     "rlTrafficLight": true, 
     "saveReplay": true, 
-    "roadnetLogFile": "manhattan/roadnet_manhattan.json", 
-    "replayLogFile": "manhattan/log.txt"
+    "roadnetLogFile": "log.json", 
+    "replayLogFile": "log.txt"
 }

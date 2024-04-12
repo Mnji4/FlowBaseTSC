@@ -53,12 +53,12 @@ def read_args():
     parser.add_argument('--resolution', type=int, default=None, help='environment resolution (default is to use environment specific presets)')
 
     # dqn settings
-    parser.add_argument('--buffer_size', type=int, default=int(2 ** 15), help='capacity of experience replay buffer (must be a power of two)')
-    parser.add_argument('--burnin', type=int, default=200, help='how many transitions should be in the buffer before start of training')
+    parser.add_argument('--buffer_size', type=int, default=int(2 ** 14), help='capacity of experience replay buffer (must be a power of two)')
+    parser.add_argument('--burnin', type=int, default=2000, help='how many transitions should be in the buffer before start of training')
     parser.add_argument('--gamma', type=float, default=0.99, help='reward discount factor')
     parser.add_argument('--sync_dqn_target_every', type=int, default=24000, help='sync Q target net every n frames')
 
-    parser.add_argument('--batch_size', type=int, default=128, help='sample size when sampling from the replay buffer')
+    parser.add_argument('--batch_size', type=int, default=256, help='sample size when sampling from the replay buffer')
     parser.add_argument('--parallel_envs', type=int, default=24, help='number of envs in the vectorized env')
     parser.add_argument('--train_count', type=int, default=4, help='how often to train on a batch_size batch for every step (of the vectorized env)')
     parser.add_argument('--subproc_vecenv', type=parse_bool, default=True, help='whether to run each environment in it\'s own subprocess (always enabled for gym-retro)')
@@ -73,13 +73,13 @@ def read_args():
     parser.add_argument('--prioritized_er_time', type=int, default=None, help='time period over which to increase the IS exponent (+inf for dopamine; default is value of training_frames)')
     parser.add_argument('--n_step', type=int, default=1, help='the n in n-step bootstrapping')
     parser.add_argument('--init_eps', type=float, default=1.0, help='initial dqn exploration epsilon (when not using noisy-nets)')
-    parser.add_argument('--final_eps', type=float, default=0.01, help='final dqn exploration epsilon (when not using noisy-nets)')
-    parser.add_argument('--eps_decay_frames', type=int, default=5_000, help='exploration epsilon decay frames, 250_000 for rainbow paper, 1M for dopamine (when not using noisy-nets)')
+    parser.add_argument('--final_eps', type=float, default=0.1, help='final dqn exploration epsilon (when not using noisy-nets)')
+    parser.add_argument('--eps_decay_frames', type=int, default=250_000, help='exploration epsilon decay frames, 250_000 for rainbow paper, 1M for dopamine (when not using noisy-nets)')
     parser.add_argument('--noisy_dqn', type=parse_bool, default=False, help='whether to use noisy nets dqn')
     parser.add_argument('--noisy_sigma0', type=float, default=0.5, help='sigma_0 parameter for noisy nets dqn')
 
     # optimizer settings
-    parser.add_argument('--lr', type=float, default=0.00025, help='learning rate for adam (0.0000625 for rainbow paper/dopamine, 0.00025 for DQN/procgen paper)')
+    parser.add_argument('--lr', type=float, default=0.001, help='learning rate for adam (0.0000625 for rainbow paper/dopamine, 0.00025 for DQN/procgen paper)')
     parser.add_argument('--lr_decay_steps', type=int, default=None, help='learning rate is decayed every n game_steps (disabled by default)')
     parser.add_argument('--lr_decay_factor', type=float, default=None, help='factor by which lr is multiplied (disabled by default)')
     parser.add_argument('--adam_eps', type=float, default=None, help='epsilon for adam (0.00015 for rainbow paper/dopamine, 0.0003125 for DQN/procgen paper); default is to use 0.005/batch_size')

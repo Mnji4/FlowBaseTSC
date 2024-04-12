@@ -134,7 +134,7 @@ class PrioritizedReplayBuffer:
 
     @staticmethod
     def prepare_transition(state, next_state, action: int, reward: float, done: bool):
-        action = torch.LongTensor((np.array[action])).cuda()
+        action = torch.LongTensor((np.array([action]))).cuda()
         reward = torch.FloatTensor(np.array([reward])).cuda()
         done = torch.FloatTensor(np.array([done])).cuda()
 

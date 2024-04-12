@@ -1233,7 +1233,7 @@ class SingleCritic(nn.Module):
         """
         states = inps
 
-        s_encoding = self.state_encoder(states[0])
+        s_encoding = self.state_encoder(states)
         all_rets = []
         agent_rets = []
         

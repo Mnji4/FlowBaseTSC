@@ -30,8 +30,7 @@ class MyEnv(gym.Env):
         self.pre_lane_vehicle = {}
         self.now_step = 0
         self.max_step = max_step
-        self.action_space = gym.spaces.Discrete(4)  # 动作空间
-        self.seconds_per_step = 15
+        self.seconds_per_step = 10
         self.redtime = 5
         self.info_enable = 0
         self.intersections = {}
@@ -174,12 +173,12 @@ class MyEnv(gym.Env):
                 obs[ai][movement] += self.effective_count[inlane] - self.effective_waiting_count[inlane]
                 # effective pressure
                 obs[ai][movement+12] = +self.effective_waiting_count[inlane]
-                self.pressure[ai] += self.lane_vehicle_count[inlane]
+                self.pressure[ai] += self.lane_waiting_vehicle_count[inlane]
                 self.queue[ai] += self.lane_waiting_vehicle_count[inlane]
                 for outlanei in range(3):
                     outlane = f"{roadlink['endRoad']}_{outlanei}"
                     obs[ai][movement+12] -= self.effective_waiting_count[outlane]/3
-                    self.pressure[ai]  -= self.lane_vehicle_count[outlane]
+                    self.pressure[ai]  -= self.lane_waiting_vehicle_count[outlane]
                 # for v in self.lane_vehicle[inlane]:
                 #     distance = self.roads[roadlink['startRoad']]['length'] - self.vehicle_distance[v]
                 #     if distance < 111:

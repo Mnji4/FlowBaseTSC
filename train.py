@@ -95,7 +95,7 @@ if __name__ == '__main__':
         env.step_async(actions)
 
         # if training has started, perform args.train_count training steps, each on a batch of size args.batch_size
-        if rainbow.buffer.burnedin and game_frame%10 == 0:
+        if rainbow.buffer.burnedin and game_frame%120 == 0:
             for train_iter in range(args.train_count):
                 if args.noisy_dqn and train_iter > 0: rainbow.reset_noise(rainbow.q_policy)
                 q, loss, grad_norm = rainbow.train(args.batch_size, beta=per_beta)

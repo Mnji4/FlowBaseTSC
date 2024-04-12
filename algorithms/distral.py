@@ -83,16 +83,16 @@ class Distral(object):
             actions: List of actions for each agent
         """
 
-        corrent_5obs = []
-        mask_obs = []
-        batch_size = obs[0].shape[0]
-        tmp_obs = torch.tensor(np.zeros(obs[0].shape), dtype=torch.float32, device=obs[0].device)
-        for a_i in range(self.nagents):
-            corrent_5obs.append(torch.stack([obs[i] if i == 0 else tmp_obs for i in range(5)]))
-        critic_in = list(torch.cat(corrent_5obs,dim = 1))
-        
+        # corrent_5obs = []
+        # mask_obs = []
+        # batch_size = obs[0].shape[0]
+        # tmp_obs = torch.tensor(np.zeros(obs[0].shape), dtype=torch.float32, device=obs[0].device)
+        # for a_i in range(self.nagents):
+        #     corrent_5obs.append(torch.stack([obs[i] if i == 0 else tmp_obs for i in range(5)]))
+        # critic_in = list(torch.cat(corrent_5obs,dim = 1))
+        critic_in = obs
         with torch.no_grad():
-            act = self.critic(critic_in, mask=mask_obs, return_all_q=False, return_act=True, explore=explore)
+            act = self.critic(critic_in, mask=[], return_all_q=False, return_act=True, explore=explore)
 
 
         act = act.view(self.nagents,-1,self.a_dim)
@@ -100,7 +100,7 @@ class Distral(object):
         # probs = self.critic(critic_in, mask=mask_obs, return_all_q=False, return_probs=True, explore=explore)        
         # probs = probs.view(self.nagents,-1,self.a_dim)
 
-        logits = self.critic(critic_in, mask=mask_obs, return_all_q=False, return_logits=True, explore=explore)        
+        logits = self.critic(critic_in, mask=[], return_all_q=False, return_logits=True, explore=explore)        
         logits = logits.view(self.nagents,-1,128)
         return [act[i] for i in range(self.nagents)]
         # return [act[i] for i in range(self.nagents)],[probs[i] for i in range(self.nagents)]
@@ -120,18 +120,14 @@ class Distral(object):
         batch_size = next_obs[0].shape[0]
 
 
-        next_5obs = []
-        #next_5acs = []
-        tmp_obs = torch.tensor(np.zeros(next_obs[0].shape), dtype=torch.float32, device=next_obs[0].device)
-        #tmp_acs = torch.tensor(np.zeros(next_acs[0].shape), dtype=torch.float32, device=next_obs[0].device)
-        next_mask_obs = []
-        for a_i in range(self.nagents):
-            next_5obs.append(torch.stack([next_obs[i] if i == 0 else tmp_obs for i in range(5)]))
+        # next_5obs = []
+        # tmp_obs = torch.tensor(np.zeros(next_obs[0].shape), dtype=torch.float32, device=next_obs[0].device)
+        # next_mask_obs = []
+        # for a_i in range(self.nagents):
+        #     next_5obs.append(torch.stack([next_obs[i] if i == 0 else tmp_obs for i in range(5)]))
         
-        #5 * (threads*agents) *54
-        #trgt_critic_in = list(torch.stack(next_5obs).permute(1,0,2,3).reshape(5, agent_num*batch_size, -1))
-        trgt_critic_in = list(torch.cat(next_5obs,dim = 1))
-
+        # trgt_critic_in = list(torch.cat(next_5obs,dim = 1))
+        trgt_critic_in = next_obs
         corrent_5obs = []
         corrent_5acs = torch.cat(acs)
         mask_obs = []
@@ -180,58 +176,30 @@ class Distral(object):
     def optimize_model(self, sample):
         gamma=0.999
         obs, acs, rews, next_obs, dones, times = sample
-        # Compute a mask of non-final states and concatenate the batch elements
-        # non_final_mask = torch.ByteTensor(tuple(map(lambda s: s is not None,
-        #                                     batch.next_state)))
-        #non_final_mask = dones[0].byte()
-        # non_final_next_states = torch.cat([s for s in batch.next_state if s is not None])
-        # state_batch = torch.cat(batch.state)
-        # action_batch = torch.cat(batch.action)
-        # reward_batch = torch.cat(batch.reward)
 
-        non_final_next_states = next_obs#torch.Tensor(next_obs[0])
-        state_batch = obs#torch.Tensor(obs[0])
-        action_batch = acs#torch.Tensor(acs[0])
+        next_obs = next_obs[0]#torch.Tensor(next_obs[0])
+        state_batch = obs[0]#torch.Tensor(obs[0])
+        action_batch = acs[0]#torch.Tensor(acs[0])
         reward_batch1 = rews#torch.Tensor(rews[0])
-        # calculate pi_i
-        # reg rewards
-        reward_batch = reward_batch1[0].unsqueeze(1) #- (1/beta)*torch.log(pi_i.gather(1, action_batch[0].argmax(dim = 1,keepdim = True))+1e-16 )
+        reward_batch = reward_batch1[0].unsqueeze(1)
         if torch.any(reward_batch==float('-inf')):
             print('reward_batch inf')
 
-        # Compute Q(s_t, a) - the model computes Q(s_t), then we select the columns of actions taken
-        state_action_values = self.critic(state_batch, return_all_q = True).gather(1, action_batch[0].argmax(dim = 1,keepdim = True))
+        state_action_values = self.critic(state_batch, return_all_q = True).gather(1, action_batch.argmax(dim = 1,keepdim = True))
         
-        next_state_values = self.target_critic(next_obs, return_all_q = True).gather(1, action_batch[0].argmax(dim = 1,keepdim = True))
-
-        # Compute V(s_{t+1}) for all next states, 2nd component of equation 7
-        # next_state_values = ( torch.log(
-        #     (torch.pow(policy.forward(non_final_next_states,return_probs = True), alpha)
-        #     * (torch.exp(beta * self.critic(non_final_next_states, return_all_q = True)) + 1e-16)).sum(1)) / beta ).detach().unsqueeze(1)
-        # if torch.any(next_state_values==float('inf')):
-        #     print('next_state_values inf')
-        #     import pdb
-        #     pdb.set_trace()
-        # if torch.any(torch.isnan(next_state_values)):
-        #     print('next_state_values nan')
-        #Compute the expected Q values     next_state_values
-        expected_state_action_values = (next_state_values * gamma)* (1 - torch.cat(dones).view(-1,1)) + reward_batch1[0].view(-1,1)
-
+        next_state_values = self.target_critic(next_obs, return_all_q = True).gather(1, action_batch.argmax(dim = 1,keepdim = True))
+        
+        expected_state_action_values = (next_state_values * gamma)* (1 - dones[0].view(-1,1)) + reward_batch.view(-1,1)
+        
         # Compute MSE loss
         loss = F.mse_loss(state_action_values, expected_state_action_values.detach())
-        if(np.random.randint(0,100)<10):
+        if(np.random.randint(0,100)<3):
             print(state_action_values.detach().mean().item(),
                     expected_state_action_values.detach().mean().item())
             print(loss.item())
         # Optimize the model
         self.critic_optimizer.zero_grad()
         loss.backward()
-        # torch.nn.utils.clip_grad_norm_(self.critic_optimizer.param_groups[0]['params'],0.01)
-        # for param in self.critic.parameters():
-        #     if param.grad is not None:
-        #         print(param.grad.data)
-        #         param.grad.data.clamp_(-0.0001, 0.00001)
-        #         print(param.grad.data)
         self.critic_optimizer.step()
         if torch.any(torch.isnan(self.critic.state_encoder.s_enc_fc1.weight)):
             print()
@@ -290,11 +258,11 @@ class Distral(object):
         #     soft_update(a.target_policy, a.policy, self.tau)
         #self.init_from_central_agent()
 
-    def prep_training(self, device='gpu'):
+    def prep_training(self, device='cuda'):
         self.critic.train()
         self.target_critic.train()
         
-        if device == 'gpu':
+        if device == 'cuda':
             fn = lambda x: x.cuda()
         else:
             fn = lambda x: x.cpu()
@@ -309,7 +277,7 @@ class Distral(object):
     def prep_rollouts(self, device='cpu'):
         #self.central_agent.policy.eval()
         self.critic.eval()
-        if device == 'gpu':
+        if device == 'cuda':
             fn = lambda x: x.cuda()
         else:
             fn = lambda x: x.cpu()
