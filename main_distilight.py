@@ -46,12 +46,11 @@ def run(config, start = 0):
     model = []
     replay_buffer = []
 
-    config.s_dim = config.s_dim + config.a_dim
 
     for _ in range(config.n_rollout_threads):
 
-        model_ = Distral.init_from_env(env,  s_dim=config.s_dim,
-                                        a_dim= config.a_dim,
+        model_ = Distral.init_from_env(env,  s_dim=env.observation_space.shape[1],
+                                        a_dim= env.action_space.n,
                                         n_agent= 1,
                                         tau=config.tau,
                                         pi_lr=config.pi_lr,
@@ -63,8 +62,8 @@ def run(config, start = 0):
         model.append(model_)
 
         replay_buffer_ = ReplayBufferTime(360000//env.seconds_per_step, 1,
-                                [config.s_dim for i in range(1)],
-                                [config.a_dim for i in range(1)])
+                                [env.observation_space.shape[1] for i in range(1)],
+                                [env.action_space.n for i in range(1)])
         replay_buffer.append(replay_buffer_)
     #filename = Path('other/MAACcbe/models/CBE/colight_sac_round2_pressure_r/run2/incremental/model_ep11.pt')                                  
     #model = AttentionSAC.init_from_save(filename, load_critic=True)
@@ -169,10 +168,6 @@ if __name__ == '__main__':
                         help="Name of directory to store " +
                              "model/training contents")
     parser.add_argument("--dqn", default=1, type=int)
-    parser.add_argument("--s_dim", default=156, type=int)
-    parser.add_argument("--a_dim", default=8, type=int)
-    parser.add_argument("--meta_s_dim", default=52, type=int)
-    parser.add_argument("--meta_a_dim", default=2, type=int)
     parser.add_argument("--n_agent", default=1, type=int)
     parser.add_argument("--test_interval", default=5, type=int)
     parser.add_argument("--n_rollout_threads", default=1, type=int)

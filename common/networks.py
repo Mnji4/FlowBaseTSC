@@ -262,7 +262,7 @@ class ImpalaCNNLarge(nn.Module):
         return self.dueling(f, advantages_only=advantages_only)
 
 class Linear(nn.Module):
-    def __init__(self, depth, act_dim, linear_layer, obs_dim=160, hidden_dim=64):
+    def __init__(self, depth, act_dim, linear_layer, obs_dim=160, hidden_dim=128):
         super(Linear, self).__init__()
         # self.bn1 = nn.BatchNorm1d(obs_dim)
         self.fc1 = nn.Linear(obs_dim,hidden_dim)

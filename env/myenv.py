@@ -5,6 +5,17 @@ sys.path.append('CityFlow/dist/CityFlow-0.1.1-py3.7-linux-x86_64.egg')
 import cityflow
 import json
 import random
+action_to_onehot = np.array([
+    [0, 1, 0, 1, 0, 0, 0, 0],
+    [0, 0, 0, 0, 0, 1, 0, 1],
+    [1, 0, 1, 0, 0, 0, 0, 0],
+    [0, 0, 0, 0, 1, 0, 1, 0],
+    [1, 1, 0, 0, 0, 0, 0, 0],
+    [0, 0, 1, 1, 0, 0, 0, 0],
+    [0, 0, 0, 0, 0, 0, 1, 1],
+    [0, 0, 0, 0, 1, 1, 0, 0]
+])
+
 class MyEnv(gym.Env):
     def __init__(self, eng_config_file, max_step = 3600):
         f = open(eng_config_file, 'r')
@@ -19,8 +30,8 @@ class MyEnv(gym.Env):
         self.pre_lane_vehicle = {}
         self.now_step = 0
         self.max_step = max_step
-        self.action_space = gym.spaces.Discrete(8)  # 动作空间
-        self.seconds_per_step = 10
+        self.action_space = gym.spaces.Discrete(4)  # 动作空间
+        self.seconds_per_step = 15
         self.redtime = 5
         self.info_enable = 0
         self.intersections = {}
@@ -74,7 +85,7 @@ class MyEnv(gym.Env):
             }
 
 
-        self.observation_space = gym.spaces.Box(low=-1e10, high=1e10, shape=(len(self.agents),44+120,))
+        self.observation_space = gym.spaces.Box(low=-1e10, high=1e10, shape=(len(self.agents),32,))
         self.action_space = gym.spaces.Discrete(8)
 		# 其他成员
 
@@ -129,7 +140,7 @@ class MyEnv(gym.Env):
         self.lane_vehicle_count = self.eng.get_lane_vehicle_count()
         #vehicle_speed = self.eng.get_vehicle_speed()
         self.lane_waiting_vehicle_count = self.eng.get_lane_waiting_vehicle_count()
-        self.lane_vehicle = self.eng.get_lane_vehicles()
+        # self.lane_vehicle = self.eng.get_lane_vehicles()
         # vehicle_speed = self.eng.get_vehicle_speed()
         self.vehicle_distance = self.eng.get_vehicle_distance()
         self.effective_count = self.eng.get_lane_effective_vehicle_count(111.11)
@@ -169,19 +180,19 @@ class MyEnv(gym.Env):
                     outlane = f"{roadlink['endRoad']}_{outlanei}"
                     obs[ai][movement+12] -= self.effective_waiting_count[outlane]/3
                     self.pressure[ai]  -= self.lane_vehicle_count[outlane]
-                for v in self.lane_vehicle[inlane]:
-                    distance = self.roads[roadlink['startRoad']]['length'] - self.vehicle_distance[v]
-                    if distance < 111:
-                        cell = int(distance//11.111)
-                        obs[ai][44+movement*10+cell] += 1
+                # for v in self.lane_vehicle[inlane]:
+                #     distance = self.roads[roadlink['startRoad']]['length'] - self.vehicle_distance[v]
+                #     if distance < 111:
+                #         cell = int(distance//11.111)
+                #         obs[ai][44+movement*10+cell] += 1
                 
         self.effective_pressure = obs[:,12:24].sum(1)
         onehot_acts = np.zeros((len(self.agents), 8))
         if self.action is not None:
-            onehot_acts[np.arange(len(self.agents)), self.action] = 1  
+            onehot_acts = np.take(action_to_onehot, self.action, axis=0) 
         obs[:, 24:32] = onehot_acts
-        onehot_agenti = np.eye(len(self.agents))
-        obs[:, 32:44] = onehot_agenti
+        # onehot_agenti = np.eye(len(self.agents))
+        # obs[:, 32:44] = onehot_agenti
         
 
         return obs
@@ -233,7 +244,7 @@ class MyEnv(gym.Env):
         info = {}#self._get_reward()self._get_info()
         self._update_vehicle_intersection()
         if self.now_step == 3600:
-            print('average time:{}'.format(self.eng.get_average_travel_time()))
+            print(f'average time:{self.eng.get_average_travel_time()}')
         self.last_action = action
         return obs, reward, dones , info
 
