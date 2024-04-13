@@ -8,4 +8,5 @@ log.*
 CityFlow/build/
 CityFlow/CityFlow.egg-info/
 *.txt
+*.log
 # CityFlow/dist/CityFlow-0.1.1-py3.7-linux-x86_64.egg

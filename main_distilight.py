@@ -16,7 +16,7 @@ def run(config, start = 0):
     best_rew = 0
 
     
-    model_dir = Path('manhattan/models') / config.env_id / config.model_name
+    model_dir = Path('models') / config.env_id
     if not model_dir.exists():
         run_num = 1
     else:
@@ -53,8 +53,7 @@ def run(config, start = 0):
                                         q_lr=config.q_lr,
                                         gamma=config.gamma,
                                         pol_hidden_dim=config.pol_hidden_dim,
-                                        critic_hidden_dim=config.critic_hidden_dim,
-                                        reward_scale=config.reward_scale)
+                                        critic_hidden_dim=config.critic_hidden_dim)
         model.append(model_)
 
         replay_buffer_ = ReplayBufferTime(360000//env.seconds_per_step, 1,
@@ -64,11 +63,9 @@ def run(config, start = 0):
     #filename = Path('other/MAACcbe/models/CBE/colight_sac_round2_pressure_r/run2/incremental/model_ep11.pt')                                  
     #model = AttentionSAC.init_from_save(filename, load_critic=True)
 
-    if config.load_model:
-        for i in range(2):
-            filename = Path(config.model_path + 'model%i_ep121.pt' %(i))
-            model_ = Distral.init_from_save(filename, load_critic=True)
-            model.append(model_)
+    # if config.load_model:
+    #     filename = Path(config.model_path)
+    #     model[0] = Distral.init_from_save(filename, load_critic=True)
 
 
     t = 0
@@ -149,7 +146,9 @@ def run(config, start = 0):
                         model[i].prep_rollouts(device='cpu')
                 
 
-
+        if ep_i % config.save_interval < config.n_rollout_threads:
+            os.makedirs(run_dir , exist_ok=True)
+            model[0].save(run_dir / f'model_ep{ep_i + 1}.pt')
         # ep_rews = replay_buffer.get_average_rewards(
         #    config.episode_length * config.n_rollout_threads)
         # for a_i, a_ep_rew in enumerate(ep_rews):
@@ -171,14 +170,14 @@ if __name__ == '__main__':
     parser.add_argument("--n_agent", default=1, type=int)
     parser.add_argument("--test_interval", default=10, type=int)
     parser.add_argument("--n_rollout_threads", default=1, type=int)
-    parser.add_argument("--buffer_length", default=int(1e5), type=int)
+    parser.add_argument("--buffer_length", default=int(1e6), type=int)
     parser.add_argument("--n_episodes", default=200, type=int)
     parser.add_argument("--episode_length", default=3600, type=int)
     parser.add_argument("--steps_per_update", default=10, type=int)
     parser.add_argument("--num_updates", default=4, type=int,
                         help="Number of updates per update cycle")
     parser.add_argument("--batch_size",
-                        default=128, type=int,
+                        default=256, type=int,
                         help="Batch size for training")    
     parser.add_argument("--meta_batch_size",
                         default=256, type=int,
@@ -188,16 +187,14 @@ if __name__ == '__main__':
     parser.add_argument("--critic_hidden_dim", default=128, type=int)
     parser.add_argument("--attend_heads", default=4, type=int)
     parser.add_argument("--pi_lr", default=0.0002, type=float)
-    parser.add_argument("--q_lr", default=0.0001, type=float)
+    parser.add_argument("--q_lr", default=0.001, type=float)
     parser.add_argument("--tau", default=0.001, type=float)
     parser.add_argument("--gamma", default=0.99, type=float)
-    parser.add_argument("--reward_scale", default=100., type=float)
     parser.add_argument("--use_gpu", default=True, action='store_true')
 
     parser.add_argument("--log_num",default=0, type=int)
     parser.add_argument("--load_model", default=False, type=bool)
-    parser.add_argument("--model_path", default='/start/manhattan/models/Distral/test/run113/')
-    parser.add_argument("--meta_model_path", default='/start/manhattan/models/Distral/test/run109/')
+    parser.add_argument("--model_path", default='models/Distral/run6/model_ep41.pt')
     parser.add_argument("--env_config", default='./config/config_jinan.json')
     config = parser.parse_args()
     run(config, 0)

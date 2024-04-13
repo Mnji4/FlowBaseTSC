@@ -16,7 +16,6 @@ class Distral(object):
     """
     def __init__(self, agent_init_params, sa_size,
                  gamma=0.95, tau=0.01, pi_lr=0.01, q_lr=0.001,
-                 reward_scale=10.,
                  pol_hidden_dim=128,
                  critic_hidden_dim=128, attend_heads=4,
                  **kwargs):
@@ -62,7 +61,6 @@ class Distral(object):
         self.tau = tau
         self.pi_lr = pi_lr
         self.q_lr = q_lr
-        self.reward_scale = reward_scale
         self.pol_dev = 'cpu'  # device for policies
         self.critic_dev = 'cpu'  # device for critics
         self.trgt_pol_dev = 'cpu'  # device for target policies
@@ -174,7 +172,7 @@ class Distral(object):
 
     # this is the SQL part for each task specific policy
     def optimize_model(self, sample):
-        gamma=0.999
+        gamma=self.gamma
         obs, acs, rews, next_obs, dones, times = sample
 
         next_obs = next_obs[0]#torch.Tensor(next_obs[0])
@@ -290,6 +288,7 @@ class Distral(object):
         """
         Save trained parameters of all agents into one file
         """
+        device=self.critic_dev
         self.prep_training(device='cpu')  # move parameters to CPU before saving
         save_dict = {'init_dict': self.init_dict,
                      'critic_params': {'critic': self.critic.state_dict(),
@@ -297,11 +296,10 @@ class Distral(object):
                                        'critic_optimizer': self.critic_optimizer.state_dict()}
                     }
         torch.save(save_dict, filename)
-
+        self.prep_training(device=device)
     @classmethod
     def init_from_env(cls, env, s_dim,a_dim, n_agent ,gamma=0.95, tau=0.01,
                       pi_lr=0.01, q_lr=0.01,
-                      reward_scale=10.,
                       pol_hidden_dim=128, critic_hidden_dim=128,
                       **kwargs):
         """
@@ -326,7 +324,6 @@ class Distral(object):
 
         init_dict = {'gamma': gamma, 'tau': tau,
                      'pi_lr': pi_lr, 'q_lr': q_lr,
-                     'reward_scale': reward_scale,
                      'pol_hidden_dim': pol_hidden_dim,
                      'critic_hidden_dim': critic_hidden_dim,
                      'agent_init_params': agent_init_params,

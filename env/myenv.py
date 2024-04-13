@@ -30,7 +30,7 @@ class MyEnv(gym.Env):
         self.pre_lane_vehicle = {}
         self.now_step = 0
         self.max_step = max_step
-        self.seconds_per_step = 10
+        self.seconds_per_step = 15
         self.redtime = 5
         self.info_enable = 0
         self.intersections = {}
@@ -132,7 +132,7 @@ class MyEnv(gym.Env):
         return pass_num
     
     def _get_reward(self):
-        rwds = -self.effective_pressure/10
+        rwds = -self.effective_pressure*4
         return rwds
 
     def _update_common_state(self):
@@ -142,9 +142,9 @@ class MyEnv(gym.Env):
         # self.lane_vehicle = self.eng.get_lane_vehicles()
         # vehicle_speed = self.eng.get_vehicle_speed()
         self.vehicle_distance = self.eng.get_vehicle_distance()
-        self.effective_count = self.eng.get_lane_effective_vehicle_count(111.11)
-        self.effective_waiting_count = self.eng.get_lane_effective_waiting_vehicle_count(111.11)
-        self.effective_vehicles = self.eng.get_lane_effective_vehicles(111.11)
+        self.effective_count = self.eng.get_lane_effective_vehicle_count(self.seconds_per_step*11.111)
+        self.effective_waiting_count = self.eng.get_lane_effective_waiting_vehicle_count(self.seconds_per_step*11.111)
+        self.effective_vehicles = self.eng.get_lane_effective_vehicles(self.seconds_per_step*11.111)
     
     def _update_vehicle_intersection(self):
         for lane,vehicles in self.effective_vehicles.items():
