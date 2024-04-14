@@ -191,10 +191,10 @@ class Distral(object):
         
         # Compute MSE loss
         loss = F.mse_loss(state_action_values, expected_state_action_values.detach())
-        if(np.random.randint(0,100)<3):
-            print(state_action_values.detach().mean().item(),
-                    expected_state_action_values.detach().mean().item())
-            print(loss.item())
+        # if(np.random.randint(0,100)<3):
+        #     print(state_action_values.detach().mean().item(),
+        #             expected_state_action_values.detach().mean().item())
+        #     print(loss.item())
         # Optimize the model
         self.critic_optimizer.zero_grad()
         loss.backward()
