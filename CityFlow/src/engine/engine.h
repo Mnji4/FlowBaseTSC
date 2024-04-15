@@ -160,6 +160,10 @@ namespace CityFlow {
 
         std::map<std::string, double> getVehicleDistance() const;
 
+        std::map<std::string, std::string> getVehicleNowLane() const;
+
+        std::map<std::string, std::string> getVehicleEndLane() const;
+
         std::string getLeader(const std::string &vehicleId) const;
 
         double getCurrentTime() const;

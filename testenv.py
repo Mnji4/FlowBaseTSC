@@ -5,12 +5,19 @@ def run():
     env = MyEnv('config/config_jinan.json',7200)
     for i in range(7200//env.seconds_per_step):
         env.step(np.random.randint(0, 7, size=(len(env.agentlist))))
+        if env.now_step == 7200:
+            for k,v in env.vehicle_last_dis.items():
+                if (v[0]!=v[1]):
+                    print(k,v)
+            
+            print(f"pass {env.passnum} catch {env.catchnum}")
+            # print({k:len(v) for k,v in env.semi_buffer.items()})
     quit()
     env = make_parallel_env('config/config_jinan.json',2,42)
     import time
     t0 = time.time()
     for i in range(360):
-        env.step_async(np.random.randint(1, 8, size=(2, 12)))
+        env.step_async(np.random.randint(0, 7, size=(len(env.agentlist))))
         env.step_wait()
     print(time.time()-t0)
 

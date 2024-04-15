@@ -719,6 +719,22 @@ namespace CityFlow {
         return ret;
     }
 
+    std::map<std::string, std::string> Engine::getVehicleNowLane() const {
+        std::map<std::string, std::string> ret;
+        for (const Vehicle* vehicle : getRunningVehicles()) {
+            ret.emplace(vehicle->getId(), vehicle->getNowLane());
+        }
+        return ret;
+    }
+
+    std::map<std::string, std::string> Engine::getVehicleEndLane() const {
+        std::map<std::string, std::string> ret;
+        for (const Vehicle* vehicle : getRunningVehicles()) {
+            ret.emplace(vehicle->getId(), vehicle->getEndLane());
+        }
+        return ret;
+    }
+
     double Engine::getCurrentTime() const {
         return step * interval;
     }

@@ -177,6 +177,20 @@ namespace CityFlow {
 
         inline std::string getId() const { return id; }
 
+        inline std::string getEndLane() const { 
+            auto route = vehicleInfo.route->getRoute();
+            if(route.size()){
+                return route[route.size()-1]->getId();
+            }
+        }
+
+        inline std::string getNowLane() const { 
+            auto route = controllerInfo.router.getFollowingRoads();
+            if(route.size()){
+                return route[0]->getId();
+            }
+        }
+
         inline double getSpeed() const { return vehicleInfo.speed; }
 
         inline double getLen() const { return vehicleInfo.len; }

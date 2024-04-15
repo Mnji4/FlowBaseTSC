@@ -25,6 +25,8 @@ PYBIND11_MODULE(cityflow, m) {
         .def("get_vehicle_speed", &CityFlow::Engine::getVehicleSpeed)
         .def("get_vehicle_info", &CityFlow::Engine::getVehicleInfo, "vehicle_id"_a)
         .def("get_vehicle_distance", &CityFlow::Engine::getVehicleDistance)
+        .def("get_vehicle_end_lane", &CityFlow::Engine::getVehicleEndLane)
+        .def("get_vehicle_now_lane", &CityFlow::Engine::getVehicleNowLane)
         .def("get_leader", &CityFlow::Engine::getLeader, "vehicle_id"_a)
         .def("get_current_time", &CityFlow::Engine::getCurrentTime)
         .def("get_average_travel_time", &CityFlow::Engine::getAverageTravelTime)
