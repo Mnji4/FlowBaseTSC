@@ -29,8 +29,8 @@ class MyEnv(gym.Env):
         self.reward_flag = 1
         self.now_step = 0
         self.max_step = max_step
-        self.seconds_per_step = 5
-        self.redtime = 0
+        self.seconds_per_step = 15
+        self.redtime = 5
         self.info_enable = 0
         self.intersections = {}
         self.agents = {}
@@ -40,21 +40,14 @@ class MyEnv(gym.Env):
         self.last_action = None
         self.action = None
 
-        self.lane_pass_num = {}
-        self.lane_new_num = {}
-        self.lane_stuck_num = {}
         self.last_lane_vehicles = {}
         self.last_effective_vehicles = {}
-        self.semi_buffer = {}
         self.passnum = 0
         self.catchnum = 0
-        self.vehicle_last_dis = {}
         
-        self.test_pass = {}
-        self.testpassnum = 0
-        self.testcatchnum = 0
-        self.remain_new_total = 0
+        self.lane_pass_vehicles = {}
         self.vehicle_duration = {}
+        self.sa_history = {}
         for o in a['roads']:
             key1 = o['startIntersection'] + o['endIntersection']
             key2 = o['endIntersection'] + o['startIntersection']
@@ -123,116 +116,69 @@ class MyEnv(gym.Env):
     def _get_roadmask(self):
         return
 
-    def _get_info(self):
-        info = {}
-        if(self.info_enable == 0):
-            return info
-        else:
-            v_list = self.eng.get_vehicles()
-            for vehicle in v_list:
-                info[vehicle] = self.eng.get_vehicle_info(vehicle)
-            return info
-        
-    def _stat_passage(self):
-        for outlanes in self.agent_outlane:
-            for outlane in outlanes:
-                if(outlane not in self.last_lane_vehicles):
-                    continue #无车道车辆状态
-                if(outlane not in self.inlane_to_agenti):
-                    continue #下游非agent
-                now_vehicles = set(self.lane_vehicles[outlane])
-                last_vehicles = set(self.last_lane_vehicles[outlane])
-                candidates = now_vehicles - last_vehicles
-                self.lane_pass_num[outlane] = len(candidates)
-                # 行程在本条路结束的车不算
-                for o in candidates:
-                    if len(self.eng.get_vehicle_info(o)["route"].split(" "))==2:
-                        self.lane_pass_num[outlane] -= 1
-                    else:
-                        if(outlane not in self.test_pass):
-                            self.test_pass[outlane] = {}
-                        self.test_pass[outlane][o]=self.now_step
-                # self.testpassnum += len(candidates)
-                # if self.lane_pass_num[outlane] != len(candidates):
-                #     print()
-        for inlanes in self.agent_inlane:
-            for inlane in inlanes:
-                if(inlane not in self.last_effective_vehicles):
-                    continue
-                now_vehicles = set(self.effective_vehicles[inlane])
-                last_vehicles = set(self.last_effective_vehicles[inlane])
-
-                # 新进入
-                self.lane_new_num[inlane] = len(now_vehicles - last_vehicles)
-
-                # 原地
-                self.lane_stuck_num[inlane] = len(last_vehicles & now_vehicles)
-
-
-    def _process_passed(self, agenti, nextlane):
-        if(nextlane not in self.lane_pass_num):
-            return
-        n_pass = self.lane_pass_num[nextlane]
-        if n_pass == 0: return
-        s = self.obs[agenti]
-        a = self.action[agenti]
-        r = 0
-        self.semi_buffer[nextlane].append([s,a,r,n_pass,self.now_step])
-        self.passnum+=n_pass
+    def _process_passed(self, agenti, outlane):
+        if(outlane not in self.last_lane_vehicles):
+            return #无车道车辆状态
+        if(outlane not in self.inlane_to_agenti):
+            return #下游非agent
+        now_vehicles = set(self.lane_vehicles[outlane])
+        last_vehicles = set(self.last_lane_vehicles[outlane])
+        candidates = now_vehicles - last_vehicles
+        # 行程在本条路结束的车不算
+        for o in candidates:
+            if self.vehicle_end_lane[o]!=outlane[:-2]:
+                if(outlane not in self.lane_pass_vehicles):
+                    self.lane_pass_vehicles[outlane] = {}
+                self.lane_pass_vehicles[outlane][o]=self.now_step-self.seconds_per_step
+                self.passnum+=1
+                 
     def _process_stuck(self, agenti, lane):
         pass
+    
     def _process_new(self, agenti, inlane):
-        if(inlane not in self.lane_new_num):
+        if(inlane not in self.last_effective_vehicles):
             return
-        if(inlane not in self.lane_pass_num):
+        if inlane not in self.lane_pass_vehicles: #没统计进放行的
             return
-        if inlane not in self.test_pass:
-            return
-        remain_new_num = self.lane_new_num[inlane]
         #按车辆统计新来
         now_vehicles = set(self.effective_vehicles[inlane])
         last_vehicles = set(self.last_effective_vehicles[inlane])
         candidates = (now_vehicles - last_vehicles)
+        pass_agent = self.outlane_to_agenti[inlane]
+        vehicle_pass_ts = {}
         for o in candidates:
-            if o in self.test_pass[inlane]:
+            if o in self.lane_pass_vehicles[inlane]:
                 if(inlane not in self.vehicle_duration):
                     self.vehicle_duration[inlane] = {}
-                self.vehicle_duration[inlane][o] = (self.test_pass[inlane][o],self.now_step)
-                self.test_pass[inlane].pop(o)
-                
+                pass_t = self.lane_pass_vehicles[inlane][o]
+                self.vehicle_duration[inlane][o] = (pass_t,self.now_step)
+                self.lane_pass_vehicles[inlane].pop(o)
+                if pass_t not in vehicle_pass_ts:
+                    vehicle_pass_ts[pass_t] = 0
+                vehicle_pass_ts[pass_t] += 1
+                self.catchnum+=1 
+        #push to buffer
+        # for pass_t,n in vehicle_pass_ts.items():
+        #     s = self.sa_history[pass_t][0][pass_agent]
+        #     a = self.sa_history[pass_t][1][pass_agent]
+        #     r = 0
+            
 
-        to_del_num = 0
-        for semi_tran in self.semi_buffer[inlane]:
-            if remain_new_num < 0:
-                print("error")
-                quit()
-            elif remain_new_num == 0: #finish this lane
-                break
-            passnum = semi_tran[3]
-            self.catchnum+=min(passnum,remain_new_num)
-            if passnum > remain_new_num:
-                semi_tran[3] -= remain_new_num
-                remain_new_num = 0
-            else:
-                remain_new_num -= semi_tran[3]
-                to_del_num += 1
-            # insert to buffer
-        self.semi_buffer[inlane] = self.semi_buffer[inlane][to_del_num:] 
 
     def _process_passage(self):
         for agenti,lanes in enumerate(self.agent_inlane):
             for inlane in lanes:
-                #passed
-                self._process_passed(agenti,inlane)
                 #stuck
                 self._process_stuck(agenti,inlane)
                 # new, catch semi trasition
         for agenti,lanes in enumerate(self.agent_outlane):
             for outlane in lanes:
+                self._process_passed(agenti,outlane)
                 self._process_new(agenti,outlane)
-
+                
         self.last_lane_vehicles = self.lane_vehicles
         self.last_effective_vehicles = self.effective_vehicles
+        
     def _get_reward(self):
         rwds = -self.effective_pressure*4
         return rwds
@@ -250,11 +196,6 @@ class MyEnv(gym.Env):
         self.effective_waiting_count = self.eng.get_lane_effective_waiting_vehicle_count(self.seconds_per_step*11.111*1)
         self.effective_vehicles = self.eng.get_lane_effective_vehicles(self.seconds_per_step*11.111*1)
         self.vehicles = self.eng.get_vehicles(True)
-        # for o in self.vehicles:
-        #     c = self.vehicle_now_lane[o]
-        #     a = self.vehicle_end_lane[o]
-        #     b = self.vehicle_distance[o]
-        #     self.vehicle_last_dis[o] = (c, a, b)
             
     def _update_vehicle_intersection(self):
         for lane,vehicles in self.effective_vehicles.items():
@@ -355,8 +296,7 @@ class MyEnv(gym.Env):
         self.reward = self._get_reward()
         info = {}#self._get_reward()self._get_info()
         # self._update_vehicle_intersection()
-        
-        self._stat_passage()
+        self.sa_history[self.now_step] = (self.obs,action)
         self._process_passage()
 
         if self.now_step == 3600:
@@ -370,7 +310,6 @@ class MyEnv(gym.Env):
         #     self.eng.next_step()
         #self.eng.reset()
         self.vehicle_last_agenti = {}
-        self.semi_buffer = {o:[] for lanes in self.agent_inlane for o in lanes }
         self.now_step = 0
         self.now_phases = np.full((len(self.agents)),-1)
         self._update_common_state()

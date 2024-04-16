@@ -10,10 +10,10 @@ def run():
                 if(len(v)):
                     print(k,v)
             print(f"pass {env.passnum} catch {env.catchnum}")
-            print(sum(len(vs) for d in env.vehicle_duration.values() for vs in d.values()))
+            print(sum(len(d) for d in env.vehicle_duration.values()))
             for lane,d in env.vehicle_duration.items():
                 for k,v in d.items():
-                    print(k,v,v[1]-v[0])
+                    print(lane,k,v,v[1]-v[0])
             # print({k:len(v) for k,v in env.semi_buffer.items()})
     quit()
     env = make_parallel_env('config/config_jinan.json',2,42)
@@ -25,5 +25,5 @@ def run():
     print(time.time()-t0)
 
 if __name__ == '__main__':
-    run()
-    # cProfile.run("run()",  sort="cumulative")
+    # run()
+    cProfile.run("run()",  sort="cumulative")
