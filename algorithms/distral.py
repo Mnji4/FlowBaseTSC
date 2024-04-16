@@ -191,6 +191,9 @@ class Distral(object):
         
         # Compute MSE loss
         loss = F.mse_loss(state_action_values, expected_state_action_values.detach())
+        if np.random.randint(1,100)<2:
+            print(loss.item())
+            print(next_state_values.mean().item(),expected_state_action_values.mean().item())
         # if(np.random.randint(0,100)<3):
         #     print(state_action_values.detach().mean().item(),
         #             expected_state_action_values.detach().mean().item())

@@ -29,7 +29,7 @@ class MyEnv(gym.Env):
         self.now_step = 0
         self.max_step = max_step
         self.seconds_per_step = 15
-        self.redtime = 5
+        self.redtime = 0
         self.info_enable = 0
         self.intersections = {}
         self.agents = {}
@@ -91,7 +91,7 @@ class MyEnv(gym.Env):
             }
 
 
-        self.observation_space = gym.spaces.Box(low=-1e10, high=1e10, shape=(len(self.agents),32,))
+        self.observation_space = gym.spaces.Box(low=-1e10, high=1e10, shape=(len(self.agents),32 + len(self.agents),))
         self.action_space = gym.spaces.Discrete(8)
 		# 其他成员
 
@@ -119,12 +119,25 @@ class MyEnv(gym.Env):
     def _process_passed(self, agenti, outlane):
         if(outlane not in self.last_lane_vehicles):
             return #无车道车辆状态
-        if(outlane not in self.inlane_to_agenti):
-            return #下游非agent
         now_vehicles = set(self.lane_vehicles[outlane])
         last_vehicles = set(self.last_lane_vehicles[outlane])
         candidates = now_vehicles - last_vehicles
-        # 行程在本条路结束的车不算
+        if(outlane not in self.inlane_to_agenti):
+            #下游非agent
+            n = len(candidates)
+            s = self.sa_history[self.now_step-self.seconds_per_step][0][agenti]
+            a = self.sa_history[self.now_step-self.seconds_per_step][1][agenti]
+            r = (-self.seconds_per_step)*n/20
+            next_s = self.obs[agenti]
+            _obs = np.expand_dims(s,(0,1))
+            _actions = np.expand_dims(a,(0,1))
+            _rewards = np.expand_dims(r,(0,1))
+            _weights = np.full_like(_rewards,n)
+            _next_obs = np.expand_dims(next_s,(0,1))
+            _dones = np.full_like(_rewards,False)
+            self.flow_buffer.push(_obs, _actions, _rewards, _next_obs, _dones,_weights)
+
+        # 1
         for o in candidates:
             if self.vehicle_end_lane[o]!=outlane[:-2]:
                 if(outlane not in self.lane_pass_vehicles):
@@ -140,12 +153,12 @@ class MyEnv(gym.Env):
         n = len(now_vehicles & last_vehicles)
         s = self.sa_history[self.now_step-self.seconds_per_step][0][agenti]
         a = self.sa_history[self.now_step-self.seconds_per_step][1][agenti]
-        r = -self.seconds_per_step*n/10
+        r = -self.seconds_per_step*n/20
         next_s = self.obs[agenti]
         _obs = np.expand_dims(s,(0,1))
         _actions = np.expand_dims(a,(0,1))
         _rewards = np.expand_dims(r,(0,1))
-        _weights = np.full_like(_rewards,1)
+        _weights = np.full_like(_rewards,n)
         _next_obs = np.expand_dims(next_s,(0,1))
         _dones = np.full_like(_rewards,False)
         self.flow_buffer.push(_obs, _actions, _rewards, _next_obs, _dones,_weights)
@@ -177,12 +190,12 @@ class MyEnv(gym.Env):
         for pass_t,n in vehicle_pass_ts.items():
             s = self.sa_history[pass_t][0][pass_agent]
             a = self.sa_history[pass_t][1][pass_agent]
-            r = (pass_t-self.now_step)*n/10
+            r = (pass_t-self.now_step)*n/20
             next_s = self.obs[catch_agent]
             _obs = np.expand_dims(s,(0,1))
             _actions = np.expand_dims(a,(0,1))
             _rewards = np.expand_dims(r,(0,1))
-            _weights = np.full_like(_rewards,1)
+            _weights = np.full_like(_rewards,n)
             _next_obs = np.expand_dims(next_s,(0,1))
             _dones = np.full_like(_rewards,False)
             self.flow_buffer.push(_obs, _actions, _rewards, _next_obs, _dones,_weights)
@@ -264,8 +277,8 @@ class MyEnv(gym.Env):
         if self.action is not None and len(self.action):
             onehot_acts = np.take(action_to_onehot, self.action, axis=0) 
         obs[:, 24:32] = onehot_acts
-        # onehot_agenti = np.eye(len(self.agents))
-        # obs[:, 32:44] = onehot_agenti
+        onehot_agenti = np.eye(len(self.agents))
+        obs[:, 32:32+len(self.agents)] = onehot_agenti
         
 
         return obs
@@ -319,12 +332,13 @@ class MyEnv(gym.Env):
         self.reward = self._get_reward()
         info = {}#self._get_reward()self._get_info()
         # self._update_vehicle_intersection()
-        
-        self._process_passage()
+        if(self.flow_buffer is not None):
+            self._process_passage()
 
         if self.now_step == 3600:
             print(f'average time:{self.eng.get_average_travel_time()}')
-            print(f'buffer len:{len(self.flow_buffer)}')
+            if(self.flow_buffer is not None):
+                print(f'buffer len:{len(self.flow_buffer)}')
         self.last_action = action
         return self.obs, self.reward, self.dones , info
 

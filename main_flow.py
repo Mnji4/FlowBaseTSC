@@ -194,7 +194,7 @@ if __name__ == '__main__':
     parser.add_argument("--log_num",default=0, type=int)
     parser.add_argument("--load_model", default=False, type=bool)
     parser.add_argument("--model_path", default='models/Distral/run6/model_ep41.pt')
-    parser.add_argument("--env_config", default='./config/config_jinan.json')
+    parser.add_argument("--env_config", default='./config/config_3.json')
     config = parser.parse_args()
     run(config, 0)
     # cProfile.run("")
