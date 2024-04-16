@@ -29,8 +29,8 @@ class MyEnv(gym.Env):
         self.reward_flag = 1
         self.now_step = 0
         self.max_step = max_step
-        self.seconds_per_step = 2
-        self.redtime = 0
+        self.seconds_per_step = 15
+        self.redtime = 5
         self.info_enable = 0
         self.intersections = {}
         self.agents = {}
@@ -49,6 +49,11 @@ class MyEnv(gym.Env):
         self.passnum = 0
         self.catchnum = 0
         self.vehicle_last_dis = {}
+        
+        self.test_pass = {}
+        self.testpassnum = 0
+        self.testcatchnum = 0
+        self.remain_new_total = 0
         for o in a['roads']:
             key1 = o['startIntersection'] + o['endIntersection']
             key2 = o['endIntersection'] + o['startIntersection']
@@ -106,7 +111,12 @@ class MyEnv(gym.Env):
                 continue
             for i in range(3):
                 self.inlane_to_agenti[f"{k}_{i}"] = self.agentlist.index(v['end_inter'])
-                
+        self.outlane_to_agenti = {}
+        for k,v in self.roads.items():
+            if v['start_inter'] not in self.agentlist:
+                continue
+            for i in range(3):
+                self.outlane_to_agenti[f"{k}_{i}"] = self.agentlist.index(v['start_inter'])
         self.reset()
     
     def _get_roadmask(self):
@@ -126,17 +136,25 @@ class MyEnv(gym.Env):
         for outlanes in self.agent_outlane:
             for outlane in outlanes:
                 if(outlane not in self.last_lane_vehicles):
-                    continue
+                    continue #无车道车辆状态
+                if(outlane not in self.inlane_to_agenti):
+                    continue #下游非agent
                 now_vehicles = set(self.lane_vehicles[outlane])
                 last_vehicles = set(self.last_lane_vehicles[outlane])
-                candidates = now_vehicles - last_vehicles
+                candidates = list(now_vehicles - last_vehicles)
                 self.lane_pass_num[outlane] = len(candidates)
                 # 行程在本条路结束的车不算
                 for o in candidates:
                     if len(self.eng.get_vehicle_info(o)["route"].split(" "))==2:
                         self.lane_pass_num[outlane] -= 1
-                        continue
-
+                #         candidates.remove(o)
+                # if(outlane in self.test_pass):
+                #     self.test_pass[outlane].extend(list(candidates))
+                # else:
+                #     self.test_pass[outlane] = list(candidates)
+                # self.testpassnum += len(candidates)
+                # if self.lane_pass_num[outlane] != len(candidates):
+                #     print()
         for inlanes in self.agent_inlane:
             for inlane in inlanes:
                 if(inlane not in self.last_effective_vehicles):
@@ -147,21 +165,18 @@ class MyEnv(gym.Env):
                 # 新进入
                 self.lane_new_num[inlane] = len(now_vehicles - last_vehicles)
 
-
-
-                
-                
+                # 原地
                 self.lane_stuck_num[inlane] = len(last_vehicles & now_vehicles)
 
-        self.last_lane_vehicles = self.lane_vehicles
-        self.last_effective_vehicles = self.effective_vehicles
+
     def _process_passed(self, agenti, nextlane):
         if(nextlane not in self.lane_pass_num):
             return
+        n_pass = self.lane_pass_num[nextlane]
+        if n_pass == 0: return
         s = self.obs[agenti]
         a = self.action[agenti]
         r = 0
-        n_pass = self.lane_pass_num[nextlane]
         self.semi_buffer[nextlane].append([s,a,r,n_pass])
         self.passnum+=n_pass
     def _process_stuck(self, agenti, lane):
@@ -172,6 +187,16 @@ class MyEnv(gym.Env):
         if(inlane not in self.lane_pass_num):
             return
         remain_new_num = self.lane_new_num[inlane]
+        #按车辆统计新来
+        # now_vehicles = set(self.effective_vehicles[inlane])
+        # last_vehicles = set(self.last_effective_vehicles[inlane])
+        # candidates = (now_vehicles - last_vehicles)
+        # for o in candidates:
+        #     if o in self.test_pass[inlane]:
+        #         self.test_pass[inlane].remove(o)
+        #         self.testcatchnum += 1
+                # remain_new_num+=1
+
         to_del_num = 0
         for semi_tran in self.semi_buffer[inlane]:
             if remain_new_num < 0:
@@ -181,14 +206,15 @@ class MyEnv(gym.Env):
                 break
             passnum = semi_tran[3]
             self.catchnum+=min(passnum,remain_new_num)
+
             if passnum > remain_new_num:
-                semi_tran[3] -= passnum
+                semi_tran[3] -= remain_new_num
+                remain_new_num = 0
             else:
                 remain_new_num -= semi_tran[3]
                 to_del_num += 1
             # insert to buffer
-        self.semi_buffer[inlane] = self.semi_buffer[inlane][to_del_num:]    
-
+        self.semi_buffer[inlane] = self.semi_buffer[inlane][to_del_num:] 
 
     def _process_passage(self):
         for agenti,lanes in enumerate(self.agent_inlane):
@@ -198,9 +224,12 @@ class MyEnv(gym.Env):
                 #stuck
                 self._process_stuck(agenti,inlane)
                 # new, catch semi trasition
-                self._process_new(agenti,inlane)
+        for agenti,lanes in enumerate(self.agent_outlane):
+            for outlane in lanes:
+                self._process_new(agenti,outlane)
 
-                
+        self.last_lane_vehicles = self.lane_vehicles
+        self.last_effective_vehicles = self.effective_vehicles
     def _get_reward(self):
         rwds = -self.effective_pressure*4
         return rwds
@@ -218,10 +247,6 @@ class MyEnv(gym.Env):
         self.effective_waiting_count = self.eng.get_lane_effective_waiting_vehicle_count(self.seconds_per_step*11.111*1)
         self.effective_vehicles = self.eng.get_lane_effective_vehicles(self.seconds_per_step*11.111*1)
         self.vehicles = self.eng.get_vehicles(True)
-        
-        vc = self.eng.get_vehicle_count()
-        lvc = sum(self.lane_vehicle_count.values())
-        print(vc, lvc, len(self.vehicles))
         # for o in self.vehicles:
         #     c = self.vehicle_now_lane[o]
         #     a = self.vehicle_end_lane[o]
@@ -316,10 +341,12 @@ class MyEnv(gym.Env):
         self.now_phases = action
     def step(self, action):
         # here action is a dict {agent_id:phase}
-        self._update_common_state()
+        
         self.action = action
         self.reward = np.zeros(len(self.agentlist))
         self.run_whole_phase(action)
+        
+        self._update_common_state()
         self.dones = self._get_dones()
         self.obs = self._get_observations()
         self.reward = self._get_reward()
