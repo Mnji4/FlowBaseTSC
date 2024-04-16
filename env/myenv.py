@@ -29,8 +29,8 @@ class MyEnv(gym.Env):
         self.reward_flag = 1
         self.now_step = 0
         self.max_step = max_step
-        self.seconds_per_step = 15
-        self.redtime = 5
+        self.seconds_per_step = 5
+        self.redtime = 0
         self.info_enable = 0
         self.intersections = {}
         self.agents = {}
@@ -54,6 +54,7 @@ class MyEnv(gym.Env):
         self.testpassnum = 0
         self.testcatchnum = 0
         self.remain_new_total = 0
+        self.vehicle_duration = {}
         for o in a['roads']:
             key1 = o['startIntersection'] + o['endIntersection']
             key2 = o['endIntersection'] + o['startIntersection']
@@ -141,17 +142,16 @@ class MyEnv(gym.Env):
                     continue #下游非agent
                 now_vehicles = set(self.lane_vehicles[outlane])
                 last_vehicles = set(self.last_lane_vehicles[outlane])
-                candidates = list(now_vehicles - last_vehicles)
+                candidates = now_vehicles - last_vehicles
                 self.lane_pass_num[outlane] = len(candidates)
                 # 行程在本条路结束的车不算
                 for o in candidates:
                     if len(self.eng.get_vehicle_info(o)["route"].split(" "))==2:
                         self.lane_pass_num[outlane] -= 1
-                #         candidates.remove(o)
-                # if(outlane in self.test_pass):
-                #     self.test_pass[outlane].extend(list(candidates))
-                # else:
-                #     self.test_pass[outlane] = list(candidates)
+                    else:
+                        if(outlane not in self.test_pass):
+                            self.test_pass[outlane] = {}
+                        self.test_pass[outlane][o]=self.now_step
                 # self.testpassnum += len(candidates)
                 # if self.lane_pass_num[outlane] != len(candidates):
                 #     print()
@@ -177,7 +177,7 @@ class MyEnv(gym.Env):
         s = self.obs[agenti]
         a = self.action[agenti]
         r = 0
-        self.semi_buffer[nextlane].append([s,a,r,n_pass])
+        self.semi_buffer[nextlane].append([s,a,r,n_pass,self.now_step])
         self.passnum+=n_pass
     def _process_stuck(self, agenti, lane):
         pass
@@ -186,16 +186,20 @@ class MyEnv(gym.Env):
             return
         if(inlane not in self.lane_pass_num):
             return
+        if inlane not in self.test_pass:
+            return
         remain_new_num = self.lane_new_num[inlane]
         #按车辆统计新来
-        # now_vehicles = set(self.effective_vehicles[inlane])
-        # last_vehicles = set(self.last_effective_vehicles[inlane])
-        # candidates = (now_vehicles - last_vehicles)
-        # for o in candidates:
-        #     if o in self.test_pass[inlane]:
-        #         self.test_pass[inlane].remove(o)
-        #         self.testcatchnum += 1
-                # remain_new_num+=1
+        now_vehicles = set(self.effective_vehicles[inlane])
+        last_vehicles = set(self.last_effective_vehicles[inlane])
+        candidates = (now_vehicles - last_vehicles)
+        for o in candidates:
+            if o in self.test_pass[inlane]:
+                if(inlane not in self.vehicle_duration):
+                    self.vehicle_duration[inlane] = {}
+                self.vehicle_duration[inlane][o] = (self.test_pass[inlane][o],self.now_step)
+                self.test_pass[inlane].pop(o)
+                
 
         to_del_num = 0
         for semi_tran in self.semi_buffer[inlane]:
@@ -206,7 +210,6 @@ class MyEnv(gym.Env):
                 break
             passnum = semi_tran[3]
             self.catchnum+=min(passnum,remain_new_num)
-
             if passnum > remain_new_num:
                 semi_tran[3] -= remain_new_num
                 remain_new_num = 0
