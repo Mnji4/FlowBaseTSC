@@ -100,7 +100,8 @@ class SubprocVecEnv(VecEnv):
 class DummyVecEnv(VecEnv):
     def __init__(self, env_fns):
         self.envs = [fn() for fn in env_fns]
-        env = self.envs[0]     
+        env = self.envs[0]   
+        self.env = env  
         self.observation_space, self.action_space = env.observation_space, env.action_space
         VecEnv.__init__(self, len(env_fns), env.observation_space, env.action_space)
         if all([hasattr(a, 'adversary') for a in env.agents]):
@@ -111,7 +112,7 @@ class DummyVecEnv(VecEnv):
         self.ts = np.zeros(len(self.envs), dtype='int')        
         self.actions = None
         self.seconds_per_step = env.seconds_per_step
-        
+        self.buffer = env.flow_buffer
     def step_async(self, actions):
         self.actions = actions
 

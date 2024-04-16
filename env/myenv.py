@@ -4,7 +4,6 @@ import sys
 sys.path.append('CityFlow/dist/CityFlow-0.1.1-py3.7-linux-x86_64.egg')
 import cityflow
 import json
-import random
 action_to_onehot = np.array([
     [0, 1, 0, 1, 0, 0, 0, 0],
     [0, 0, 0, 0, 0, 1, 0, 1],
@@ -17,7 +16,7 @@ action_to_onehot = np.array([
 ])
 
 class MyEnv(gym.Env):
-    def __init__(self, eng_config_file, max_step = 3600):
+    def __init__(self, eng_config_file, max_step = 3600, buffer = None):
         f = open(eng_config_file, 'r')
         roadnet_file = json.load(f)['roadnetFile']
         f = open(roadnet_file, 'r')
@@ -48,6 +47,7 @@ class MyEnv(gym.Env):
         self.lane_pass_vehicles = {}
         self.vehicle_duration = {}
         self.sa_history = {}
+        self.flow_buffer = buffer
         for o in a['roads']:
             key1 = o['startIntersection'] + o['endIntersection']
             key2 = o['endIntersection'] + o['startIntersection']
@@ -132,8 +132,23 @@ class MyEnv(gym.Env):
                 self.lane_pass_vehicles[outlane][o]=self.now_step-self.seconds_per_step
                 self.passnum+=1
                  
-    def _process_stuck(self, agenti, lane):
-        pass
+    def _process_stuck(self, agenti, inlane):
+        if(inlane not in self.last_effective_vehicles):
+            return
+        now_vehicles = set(self.effective_vehicles[inlane])
+        last_vehicles = set(self.last_effective_vehicles[inlane])
+        n = len(now_vehicles & last_vehicles)
+        s = self.sa_history[self.now_step-self.seconds_per_step][0][agenti]
+        a = self.sa_history[self.now_step-self.seconds_per_step][1][agenti]
+        r = -self.seconds_per_step*n/10
+        next_s = self.obs[agenti]
+        _obs = np.expand_dims(s,(0,1))
+        _actions = np.expand_dims(a,(0,1))
+        _rewards = np.expand_dims(r,(0,1))
+        _weights = np.full_like(_rewards,1)
+        _next_obs = np.expand_dims(next_s,(0,1))
+        _dones = np.full_like(_rewards,False)
+        self.flow_buffer.push(_obs, _actions, _rewards, _next_obs, _dones,_weights)
     
     def _process_new(self, agenti, inlane):
         if(inlane not in self.last_effective_vehicles):
@@ -145,6 +160,7 @@ class MyEnv(gym.Env):
         last_vehicles = set(self.last_effective_vehicles[inlane])
         candidates = (now_vehicles - last_vehicles)
         pass_agent = self.outlane_to_agenti[inlane]
+        catch_agent = self.inlane_to_agenti[inlane]
         vehicle_pass_ts = {}
         for o in candidates:
             if o in self.lane_pass_vehicles[inlane]:
@@ -158,11 +174,18 @@ class MyEnv(gym.Env):
                 vehicle_pass_ts[pass_t] += 1
                 self.catchnum+=1 
         #push to buffer
-        # for pass_t,n in vehicle_pass_ts.items():
-        #     s = self.sa_history[pass_t][0][pass_agent]
-        #     a = self.sa_history[pass_t][1][pass_agent]
-        #     r = 0
-            
+        for pass_t,n in vehicle_pass_ts.items():
+            s = self.sa_history[pass_t][0][pass_agent]
+            a = self.sa_history[pass_t][1][pass_agent]
+            r = (pass_t-self.now_step)*n/10
+            next_s = self.obs[catch_agent]
+            _obs = np.expand_dims(s,(0,1))
+            _actions = np.expand_dims(a,(0,1))
+            _rewards = np.expand_dims(r,(0,1))
+            _weights = np.full_like(_rewards,1)
+            _next_obs = np.expand_dims(next_s,(0,1))
+            _dones = np.full_like(_rewards,False)
+            self.flow_buffer.push(_obs, _actions, _rewards, _next_obs, _dones,_weights)
 
 
     def _process_passage(self):
@@ -285,7 +308,7 @@ class MyEnv(gym.Env):
         self.now_phases = action
     def step(self, action):
         # here action is a dict {agent_id:phase}
-        
+        self.sa_history[self.now_step] = (self.obs,action)
         self.action = action
         self.reward = np.zeros(len(self.agentlist))
         self.run_whole_phase(action)
@@ -296,11 +319,12 @@ class MyEnv(gym.Env):
         self.reward = self._get_reward()
         info = {}#self._get_reward()self._get_info()
         # self._update_vehicle_intersection()
-        self.sa_history[self.now_step] = (self.obs,action)
+        
         self._process_passage()
 
         if self.now_step == 3600:
             print(f'average time:{self.eng.get_average_travel_time()}')
+            print(f'buffer len:{len(self.flow_buffer)}')
         self.last_action = action
         return self.obs, self.reward, self.dones , info
 
@@ -313,8 +337,8 @@ class MyEnv(gym.Env):
         self.now_step = 0
         self.now_phases = np.full((len(self.agents)),-1)
         self._update_common_state()
-        obs = self._get_observations()
-        return obs
+        self.obs = self._get_observations()
+        return self.obs
 
 from utils.env_wrappers import SubprocVecEnv, DummyVecEnv
 def make_parallel_env(eng_config, n_rollout_threads, seed):

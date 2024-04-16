@@ -12,7 +12,7 @@ class MaEnv(gym.Env):
         self.seconds_per_step = self.env.seconds_per_step
         self.att = 0
         self.observation_space, self.action_space = env.observation_space, env.action_space
-        
+        self.flow_buffer = env.flow_buffer
 
     def process_obs(self, obs):
 
@@ -50,17 +50,17 @@ class MaEnv(gym.Env):
     def gen_cloest_agents(self):
         pass
 
-def make_env(config_file):
-    env = MyEnv(config_file)
+def make_env(config_file,buffer):
+    env = MyEnv(config_file,buffer=buffer)
     return MaEnv(env)
 
 
 from utils.env_wrappers import SubprocVecEnv, DummyVecEnv
-def make_parallel_env(config_file, n_rollout_threads, seed):
+def make_parallel_env(config_file, n_rollout_threads, seed, buffer=None):
     def get_env_fn(rank):
         def init_env():
             #env = make_env(env_id, discrete_action=True)
-            env = make_env(config_file)
+            env = make_env(config_file,buffer)
             
             env.seed(seed + rank * 1000)
             np.random.seed(seed + rank * 1000)
