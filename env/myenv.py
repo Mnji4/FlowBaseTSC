@@ -46,6 +46,7 @@ class MyEnv(gym.Env):
         
         self.lane_pass_vehicles = {}
         self.vehicle_duration = {}
+        self.vehicle_traj = {}
         self.sa_history = {}
         self.flow_buffer = buffer
         for o in a['roads']:
@@ -214,7 +215,14 @@ class MyEnv(gym.Env):
                 
         self.last_lane_vehicles = self.lane_vehicles
         self.last_effective_vehicles = self.effective_vehicles
-        
+ 
+    def _update_vehicle_traj(self):
+        for inland in self.agent_inlane:
+            
+    
+    def _construct_samples(self):
+        pass
+       
     def _get_reward(self):
         rwds = -self.effective_pressure*4
         return rwds
