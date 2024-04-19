@@ -16,7 +16,7 @@ action_to_onehot = np.array([
 ])
 
 class MyEnv(gym.Env):
-    def __init__(self, eng_config_file, max_step = 3600, buffer = None):
+    def __init__(self, eng_config_file, max_step = 3600):
         f = open(eng_config_file, 'r')
         roadnet_file = json.load(f)['roadnetFile']
         f = open(roadnet_file, 'r')
@@ -26,7 +26,7 @@ class MyEnv(gym.Env):
         self.eng = cityflow.Engine(self.eng_config_file, thread_num=1)
         self.eng.set_save_replay(True)
         self.reward_flag = 1
-        self.now_step = 0
+        self.now_seconds = 0
         self.max_step = max_step
         self.seconds_per_step = 15
         self.redtime = 0
@@ -48,7 +48,8 @@ class MyEnv(gym.Env):
         self.vehicle_duration = {}
         self.vehicle_traj = {}
         self.sa_history = {}
-        self.flow_buffer = buffer
+        self.flow_buffer = None
+        self.traj_buffer = None
         for o in a['roads']:
             key1 = o['startIntersection'] + o['endIntersection']
             key2 = o['endIntersection'] + o['startIntersection']
@@ -92,7 +93,7 @@ class MyEnv(gym.Env):
             }
 
 
-        self.observation_space = gym.spaces.Box(low=-1e10, high=1e10, shape=(len(self.agents),32 + len(self.agents),))
+        self.observation_space = gym.spaces.Box(low=-1e10, high=1e10, shape=(len(self.agents),33 + len(self.agents),))
         self.action_space = gym.spaces.Discrete(8)
 		# 其他成员
 
@@ -126,8 +127,8 @@ class MyEnv(gym.Env):
         if(outlane not in self.inlane_to_agenti):
             #下游非agent
             n = len(candidates)
-            s = self.sa_history[self.now_step-self.seconds_per_step][0][agenti]
-            a = self.sa_history[self.now_step-self.seconds_per_step][1][agenti]
+            s = self.sa_history[self.now_seconds-self.seconds_per_step][0][agenti]
+            a = self.sa_history[self.now_seconds-self.seconds_per_step][1][agenti]
             r = (-self.seconds_per_step)*n/20
             next_s = self.obs[agenti]
             _obs = np.expand_dims(s,(0,1))
@@ -143,7 +144,7 @@ class MyEnv(gym.Env):
             if self.vehicle_end_lane[o]!=outlane[:-2]:
                 if(outlane not in self.lane_pass_vehicles):
                     self.lane_pass_vehicles[outlane] = {}
-                self.lane_pass_vehicles[outlane][o]=self.now_step-self.seconds_per_step
+                self.lane_pass_vehicles[outlane][o]=self.now_seconds-self.seconds_per_step
                 self.passnum+=1
                  
     def _process_stuck(self, agenti, inlane):
@@ -152,8 +153,8 @@ class MyEnv(gym.Env):
         now_vehicles = set(self.effective_vehicles[inlane])
         last_vehicles = set(self.last_effective_vehicles[inlane])
         n = len(now_vehicles & last_vehicles)
-        s = self.sa_history[self.now_step-self.seconds_per_step][0][agenti]
-        a = self.sa_history[self.now_step-self.seconds_per_step][1][agenti]
+        s = self.sa_history[self.now_seconds-self.seconds_per_step][0][agenti]
+        a = self.sa_history[self.now_seconds-self.seconds_per_step][1][agenti]
         r = -self.seconds_per_step*n/20
         next_s = self.obs[agenti]
         _obs = np.expand_dims(s,(0,1))
@@ -181,7 +182,7 @@ class MyEnv(gym.Env):
                 if(inlane not in self.vehicle_duration):
                     self.vehicle_duration[inlane] = {}
                 pass_t = self.lane_pass_vehicles[inlane][o]
-                self.vehicle_duration[inlane][o] = (pass_t,self.now_step)
+                self.vehicle_duration[inlane][o] = (pass_t,self.now_seconds)
                 self.lane_pass_vehicles[inlane].pop(o)
                 if pass_t not in vehicle_pass_ts:
                     vehicle_pass_ts[pass_t] = 0
@@ -191,10 +192,10 @@ class MyEnv(gym.Env):
         for pass_t,n in vehicle_pass_ts.items():
             s = self.sa_history[pass_t][0][pass_agent]
             a = self.sa_history[pass_t][1][pass_agent]
-            r = (pass_t-self.now_step)*n/20
+            r = (pass_t-self.now_seconds)*n/20
             next_s = self.obs[catch_agent]
             _obs = np.expand_dims(s,(0,1))
-            _actions = np.expand_dims(a,(0,1))
+            _actions = np.expand_dims(a,(0,2))
             _rewards = np.expand_dims(r,(0,1))
             _weights = np.full_like(_rewards,n)
             _next_obs = np.expand_dims(next_s,(0,1))
@@ -217,12 +218,43 @@ class MyEnv(gym.Env):
         self.last_effective_vehicles = self.effective_vehicles
  
     def _update_vehicle_traj(self):
-        for inland in self.agent_inlane:
-            
-    
+        for agenti,lanes in enumerate(self.agent_inlane):
+            for inlane in lanes:
+                roadlen = self.roads[inlane[:-2]]["length"]
+                maxv = self.roads[inlane[:-2]]["speed_limit"]
+                for v in self.lane_vehicles[inlane]:
+                    waiting = self.vehicle_speed[v] < 0.1
+                    if roadlen - self.vehicle_distance[v] > self.seconds_per_step * maxv:
+                        continue
+                    if v not in self.vehicle_traj:
+                        self.vehicle_traj[v] = []
+                    self.vehicle_traj[v].append((agenti,self.now_seconds,waiting*1))
     def _construct_samples(self):
-        pass
-       
+        for v,traj in self.vehicle_traj.items():
+            # endt = traj[-1][1]
+            for i, (agenti,t,wait_time) in enumerate(traj[:-1]):
+                # view_time = traj[min(i+1,len(traj)-1)][1]
+                # self.sa_history[t][2][agenti] += -(view_time-t)/100
+                gamma = 0.5
+                rs = np.array([o[2] for o in traj[i:min(i+2,len(traj))]])
+                weight_len = len(rs)
+                weights = gamma**np.arange(weight_len)
+                wait_time = (rs*weights).sum()
+                self.sa_history[t][2][agenti] += -(wait_time)/2
+        for ti, (s,a,r) in self.sa_history.items():
+            if (ti + self.seconds_per_step) not in self.sa_history:
+                continue
+            nexts = self.sa_history[ti+self.seconds_per_step][0]
+            _obs = np.expand_dims(s,1)
+            onehot_acts = np.take(np.eye(8), a, axis=0) 
+            _actions = np.expand_dims(onehot_acts,0)
+            _rewards = np.expand_dims(r,1)
+            _next_obs = np.expand_dims(nexts,1)
+            _dones = np.full_like(_rewards,False)
+            if (ti + self.seconds_per_step*2) not in self.sa_history:
+                _dones = np.full_like(_rewards,True)
+            self.traj_buffer.push(_obs, _actions, _rewards, _next_obs, _dones,_rewards)
+            
     def _get_reward(self):
         rwds = -self.effective_pressure*4
         return rwds
@@ -232,7 +264,7 @@ class MyEnv(gym.Env):
         #vehicle_speed = self.eng.get_vehicle_speed()
         self.lane_waiting_vehicle_count = self.eng.get_lane_waiting_vehicle_count()
         self.lane_vehicles = self.eng.get_lane_vehicles()
-        # vehicle_speed = self.eng.get_vehicle_speed()
+        self.vehicle_speed = self.eng.get_vehicle_speed()
         self.vehicle_distance = self.eng.get_vehicle_distance()
         self.vehicle_now_lane = self.eng.get_vehicle_now_lane()
         self.vehicle_end_lane = self.eng.get_vehicle_end_lane()
@@ -287,12 +319,12 @@ class MyEnv(gym.Env):
         obs[:, 24:32] = onehot_acts
         onehot_agenti = np.eye(len(self.agents))
         obs[:, 32:32+len(self.agents)] = onehot_agenti
-        
+        obs[:, 32+len(self.agents)] = np.full((len(self.agents)),self.now_seconds/self.seconds_per_step)
 
         return obs
 
     def _get_dones(self):
-        dones = np.full((len(self.agents)),self.now_step > self.max_step)
+        dones = np.full((len(self.agents)),self.now_seconds > self.max_step)
         return dones
 
     def run_whole_phase(self,action):
@@ -325,11 +357,11 @@ class MyEnv(gym.Env):
                 #     print(f"{info['distance']} {info['road']} {info['intersection']} {info['route']} ")
                 # except:
                 #     pass
-        self.now_step+=self.seconds_per_step
+        self.now_seconds+=self.seconds_per_step
         self.now_phases = action
     def step(self, action):
         # here action is a dict {agent_id:phase}
-        self.sa_history[self.now_step] = (self.obs,action)
+        self.sa_history[self.now_seconds] = [self.obs,action,np.zeros(len(self.agentlist))]
         self.action = action
         self.reward = np.zeros(len(self.agentlist))
         self.run_whole_phase(action)
@@ -338,17 +370,20 @@ class MyEnv(gym.Env):
         self.dones = self._get_dones()
         self.obs = self._get_observations()
         self.reward = self._get_reward()
-        info = {}#self._get_reward()self._get_info()
+        self.info = {}#self._get_reward()self._get_info()
         # self._update_vehicle_intersection()
         if(self.flow_buffer is not None):
             self._process_passage()
-
-        if self.now_step == 3600:
+        if(self.traj_buffer is not None):
+            self._update_vehicle_traj()
+        if self.now_seconds == 3600:
             print(f'average time:{self.eng.get_average_travel_time()}')
             if(self.flow_buffer is not None):
                 print(f'buffer len:{len(self.flow_buffer)}')
+            if(self.traj_buffer is not None):
+                self._construct_samples()
         self.last_action = action
-        return self.obs, self.reward, self.dones , info
+        return self.obs, self.reward, self.dones , self.info
 
     def reset(self):
         self.eng.reset()# = cityflow.Engine(self.eng_config_file, thread_num = 1)
@@ -356,7 +391,8 @@ class MyEnv(gym.Env):
         #     self.eng.next_step()
         #self.eng.reset()
         self.vehicle_last_agenti = {}
-        self.now_step = 0
+        self.vehicle_traj.clear()
+        self.now_seconds = 0
         self.now_phases = np.full((len(self.agents)),-1)
         self._update_common_state()
         self.obs = self._get_observations()

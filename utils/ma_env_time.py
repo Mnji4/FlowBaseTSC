@@ -20,8 +20,6 @@ class MaEnv(gym.Env):
 
     def step(self, action_n):
 
-        t = self.env.now_step
-
         action = np.argmax(action_n,1)#
 
         #obs
@@ -50,17 +48,17 @@ class MaEnv(gym.Env):
     def gen_cloest_agents(self):
         pass
 
-def make_env(config_file,buffer):
-    env = MyEnv(config_file,buffer=buffer)
+def make_env(config_file):
+    env = MyEnv(config_file)
     return MaEnv(env)
 
 
 from utils.env_wrappers import SubprocVecEnv, DummyVecEnv
-def make_parallel_env(config_file, n_rollout_threads, seed, buffer=None):
+def make_parallel_env(config_file, n_rollout_threads, seed):
     def get_env_fn(rank):
         def init_env():
             #env = make_env(env_id, discrete_action=True)
-            env = make_env(config_file,buffer)
+            env = make_env(config_file)
             
             env.seed(seed + rank * 1000)
             np.random.seed(seed + rank * 1000)

@@ -47,7 +47,7 @@ def run(config, start = 0):
 
     tmp = 30
 
-    for ep_i in range(3):
+    for ep_i in range(2):
         # print('testing random')
         config.n_rollout_threads = 1
         env = make_parallel_env(config.env_id, config.n_rollout_threads, random.randint(10))

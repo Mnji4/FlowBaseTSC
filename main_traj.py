@@ -3,7 +3,7 @@ import torch
 import os
 import numpy as np
 from pathlib import Path
-from utils.buffer import ReplayBufferTime
+from utils.buffer import ReplayBuffer,ReplayBufferTime
 # from algorithms.attention_sac1 import AttentionSAC
 #from algorithms.attention_ppo1 import AttentionPPO
 from algorithms.distral import Distral
@@ -39,10 +39,12 @@ def run(config, start = 0):
     torch.manual_seed(run_num)
     np.random.seed(run_num)
     env = make_parallel_env(config.env_config, config.n_rollout_threads, run_num)
+    replay_buffer = ReplayBufferTime(config.buffer_length, 1,
+                                [env.observation_space.shape[1] for i in range(1)],
+                                [env.action_space.n for i in range(1)])
+    env.env.env.traj_buffer = replay_buffer
+    
     model = []
-    replay_buffer = []
-
-
     for _ in range(config.n_rollout_threads):
 
         model_ = Distral.init_from_env(env,  s_dim=env.observation_space.shape[1],
@@ -56,10 +58,7 @@ def run(config, start = 0):
                                         critic_hidden_dim=config.critic_hidden_dim)
         model.append(model_)
 
-        replay_buffer_ = ReplayBufferTime(360000//env.seconds_per_step, 1,
-                                [env.observation_space.shape[1] for i in range(1)],
-                                [env.action_space.n for i in range(1)])
-        replay_buffer.append(replay_buffer_)
+
     #filename = Path('other/MAACcbe/models/CBE/colight_sac_round2_pressure_r/run2/incremental/model_ep11.pt')                                  
     #model = AttentionSAC.init_from_save(filename, load_critic=True)
 
@@ -114,20 +113,20 @@ def run(config, start = 0):
 
             #分配各个option的经历
 
-            for th in range(config.n_rollout_threads):
+            # for th in range(config.n_rollout_threads):
                 
-                _obs = np.expand_dims(obs[th],1)
-                _actions = np.expand_dims(actions[th],0)
-                _rewards = np.expand_dims(rewards[th],1)
-                _times = np.full_like(_rewards,(et_i+1)/env.seconds_per_step)
-                _next_obs = np.expand_dims(next_obs[th],1)
-                _dones = np.expand_dims(dones[th],1)
-                replay_buffer[th].push(_obs, _actions, _rewards, _next_obs, _dones,_times)
+            #     _obs = np.expand_dims(obs[th],1)
+            #     _actions = np.expand_dims(actions[th],0)
+            #     _rewards = np.expand_dims(rewards[th],1)
+            #     _times = np.full_like(_rewards,(et_i+1)/env.seconds_per_step)
+            #     _next_obs = np.expand_dims(next_obs[th],1)
+            #     _dones = np.expand_dims(dones[th],1)
+            #     replay_buffer[th].push(_obs, _actions, _rewards, _next_obs, _dones,_times)
 
             
             obs = next_obs
             t += config.n_rollout_threads
-            if (len(replay_buffer[0]) >= config.batch_size and
+            if (len(replay_buffer) >= config.batch_size and
                 (t % config.steps_per_update) < config.n_rollout_threads):
                 for i in range(config.n_rollout_threads):
 
@@ -136,7 +135,7 @@ def run(config, start = 0):
                     else:
                         model[i].prep_training(device='cpu')
                     for u_i in range(config.num_updates):
-                        sample = replay_buffer[i].sample(config.batch_size,
+                        sample = replay_buffer.sample(config.batch_size,
                                                     to_gpu=config.use_gpu)
                         model[i].optimize_model(sample)#model[0]
                         model[i].update_all_targets()
@@ -162,7 +161,7 @@ def run(config, start = 0):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument("--env_id",default='Intersec', help="Name of environment")
+    parser.add_argument("--env_id",default='Traj', help="Name of environment")
     parser.add_argument("--model_name",default='test',
                         help="Name of directory to store " +
                              "model/training contents")
@@ -171,13 +170,13 @@ if __name__ == '__main__':
     parser.add_argument("--test_interval", default=10, type=int)
     parser.add_argument("--n_rollout_threads", default=1, type=int)
     parser.add_argument("--buffer_length", default=int(1e7), type=int)
-    parser.add_argument("--n_episodes", default=80, type=int)
+    parser.add_argument("--n_episodes", default=200, type=int)
     parser.add_argument("--episode_length", default=3600, type=int)
     parser.add_argument("--steps_per_update", default=10, type=int)
-    parser.add_argument("--num_updates", default=4, type=int,
+    parser.add_argument("--num_updates", default=5, type=int,
                         help="Number of updates per update cycle")
     parser.add_argument("--batch_size",
-                        default=256, type=int,
+                        default=511, type=int,
                         help="Batch size for training")    
     parser.add_argument("--meta_batch_size",
                         default=256, type=int,
@@ -189,7 +188,7 @@ if __name__ == '__main__':
     parser.add_argument("--pi_lr", default=0.0002, type=float)
     parser.add_argument("--q_lr", default=0.001, type=float)
     parser.add_argument("--tau", default=0.001, type=float)
-    parser.add_argument("--gamma", default=0.99, type=float)
+    parser.add_argument("--gamma", default=0.9, type=float)
     parser.add_argument("--use_gpu", default=True, action='store_true')
 
     parser.add_argument("--log_num",default=0, type=int)
