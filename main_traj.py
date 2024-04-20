@@ -16,7 +16,7 @@ def run(config, start = 0):
     best_rew = 0
 
     
-    model_dir = Path('models') / config.env_id
+    model_dir = Path('models') / config.method / config.env_name
     if not model_dir.exists():
         run_num = 1
     else:
@@ -38,7 +38,8 @@ def run(config, start = 0):
 
     torch.manual_seed(run_num)
     np.random.seed(run_num)
-    env = make_parallel_env(config.env_config, config.n_rollout_threads, run_num)
+    config_file = f"./config/config_{config.env_name}.json"
+    env = make_parallel_env(config_file, config.n_rollout_threads, run_num)
     replay_buffer = ReplayBufferTime(config.buffer_length, 1,
                                 [env.observation_space.shape[1] for i in range(1)],
                                 [env.action_space.n for i in range(1)])
@@ -163,10 +164,8 @@ def run(config, start = 0):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument("--env_id",default='Traj', help="Name of environment")
-    parser.add_argument("--model_name",default='test',
-                        help="Name of directory to store " +
-                             "model/training contents")
+    parser.add_argument("--method",default='Traj', help="Name of environment")
+    parser.add_argument("--env_name",default='jinan')
     parser.add_argument("--dqn", default=1, type=int)
     parser.add_argument("--n_agent", default=1, type=int)
     parser.add_argument("--test_interval", default=10, type=int)
@@ -175,7 +174,7 @@ if __name__ == '__main__':
     parser.add_argument("--n_episodes", default=200, type=int)
     parser.add_argument("--episode_length", default=3600, type=int)
     parser.add_argument("--steps_per_update", default=10, type=int)
-    parser.add_argument("--num_updates", default=5, type=int,
+    parser.add_argument("--num_updates", default=4, type=int,
                         help="Number of updates per update cycle")
     parser.add_argument("--batch_size",
                         default=511, type=int,
@@ -195,7 +194,7 @@ if __name__ == '__main__':
 
     parser.add_argument("--log_num",default=0, type=int)
     parser.add_argument("--load_model", default=True, type=bool)
-    parser.add_argument("--model_path", default='models/Traj/run3/model_ep141.pt')
+    parser.add_argument("--model_path", default='models/Traj/run23/model_ep181.pt')
     parser.add_argument("--env_config", default='./config/config_jinan.json')
     config = parser.parse_args()
     run(config, 0)

@@ -2,7 +2,7 @@
     "seed": 0, 
     "dir": "./", 
     "roadnetFile": "data/Hangzhou/4_4/roadnet_4_4.json", 
-    "flowFile": "data/Hangzhou/4_4/anon_4_4_hangzhou_real.json", 
+    "flowFile": "data/Hangzhou/4_4/hangzhou_3_2.json", 
     "rlTrafficLight": true, 
     "saveReplay": true, 
     "roadnetLogFile": "log.json", 
