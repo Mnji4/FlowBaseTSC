@@ -286,7 +286,9 @@ class Distral(object):
             self.critic = fn(self.critic)
             #self.critic_optimizer = fn(self.critic_optimizer)
             self.critic_dev = device
-
+        if not self.trgt_critic_dev == device:
+            self.target_critic = fn(self.target_critic)
+            self.trgt_critic_dev = device
     def save(self, filename):
         """
         Save trained parameters of all agents into one file
@@ -347,8 +349,8 @@ class Distral(object):
             instance.critic.load_state_dict(critic_params['critic'])
             instance.target_critic.load_state_dict(critic_params['target_critic'])
             instance.critic_optimizer.load_state_dict(critic_params['critic_optimizer'])
-            # for state in instance.critic_optimizer.state.values():
-            #     for k, v in state.items():
-            #         if torch.is_tensor(v):
-            #             state[k] = v.cuda()
+            for state in instance.critic_optimizer.state.values():
+                for k, v in state.items():
+                    if torch.is_tensor(v):
+                        state[k] = v.cuda()
         return instance

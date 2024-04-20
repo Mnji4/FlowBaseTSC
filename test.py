@@ -64,7 +64,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("--load_model", default=True, type=bool)
     parser.add_argument("--env_config", default='config/test/config_jinan_test.json')
-    parser.add_argument("--model_path", default="models/Traj/run8/model_ep81.pt")
+    parser.add_argument("--model_path", default="models/Intersec/run1/model_ep21.pt")
     config = parser.parse_args()
 
     run(config, 0)

@@ -45,26 +45,28 @@ def run(config, start = 0):
     env.env.env.traj_buffer = replay_buffer
     
     model = []
-    for _ in range(config.n_rollout_threads):
+    if config.load_model:
+        filename = Path(config.model_path)
+        _model = Distral.init_from_save(filename, load_critic=True)
+        model = [_model]
+    else:
+        for _ in range(config.n_rollout_threads):
 
-        model_ = Distral.init_from_env(env,  s_dim=env.observation_space.shape[1],
-                                        a_dim= env.action_space.n,
-                                        n_agent= 1,
-                                        tau=config.tau,
-                                        pi_lr=config.pi_lr,
-                                        q_lr=config.q_lr,
-                                        gamma=config.gamma,
-                                        pol_hidden_dim=config.pol_hidden_dim,
-                                        critic_hidden_dim=config.critic_hidden_dim)
-        model.append(model_)
+            model_ = Distral.init_from_env(env,  s_dim=env.observation_space.shape[1],
+                                            a_dim= env.action_space.n,
+                                            n_agent= 1,
+                                            tau=config.tau,
+                                            pi_lr=config.pi_lr,
+                                            q_lr=config.q_lr,
+                                            gamma=config.gamma,
+                                            pol_hidden_dim=config.pol_hidden_dim,
+                                            critic_hidden_dim=config.critic_hidden_dim)
+            model.append(model_)
 
 
     #filename = Path('other/MAACcbe/models/CBE/colight_sac_round2_pressure_r/run2/incremental/model_ep11.pt')                                  
     #model = AttentionSAC.init_from_save(filename, load_critic=True)
 
-    # if config.load_model:
-    #     filename = Path(config.model_path)
-    #     model[0] = Distral.init_from_save(filename, load_critic=True)
 
 
     t = 0
@@ -181,19 +183,19 @@ if __name__ == '__main__':
     parser.add_argument("--meta_batch_size",
                         default=256, type=int,
                         help="Batch size for training")
-    parser.add_argument("--save_interval", default=40, type=int)
+    parser.add_argument("--save_interval", default=20, type=int)
     parser.add_argument("--pol_hidden_dim", default=128, type=int)
     parser.add_argument("--critic_hidden_dim", default=128, type=int)
     parser.add_argument("--attend_heads", default=4, type=int)
     parser.add_argument("--pi_lr", default=0.0002, type=float)
     parser.add_argument("--q_lr", default=0.001, type=float)
     parser.add_argument("--tau", default=0.001, type=float)
-    parser.add_argument("--gamma", default=0.9, type=float)
+    parser.add_argument("--gamma", default=0., type=float)
     parser.add_argument("--use_gpu", default=True, action='store_true')
 
     parser.add_argument("--log_num",default=0, type=int)
-    parser.add_argument("--load_model", default=False, type=bool)
-    parser.add_argument("--model_path", default='models/Distral/run6/model_ep41.pt')
+    parser.add_argument("--load_model", default=True, type=bool)
+    parser.add_argument("--model_path", default='models/Traj/run3/model_ep141.pt')
     parser.add_argument("--env_config", default='./config/config_jinan.json')
     config = parser.parse_args()
     run(config, 0)

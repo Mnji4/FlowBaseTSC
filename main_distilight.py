@@ -63,9 +63,9 @@ def run(config, start = 0):
     #filename = Path('other/MAACcbe/models/CBE/colight_sac_round2_pressure_r/run2/incremental/model_ep11.pt')                                  
     #model = AttentionSAC.init_from_save(filename, load_critic=True)
 
-    # if config.load_model:
-    #     filename = Path(config.model_path)
-    #     model[0] = Distral.init_from_save(filename, load_critic=True)
+    if config.load_model:
+        filename = Path(config.model_path)
+        model[0] = Distral.init_from_save(filename, load_critic=True)
 
 
     t = 0
@@ -182,7 +182,7 @@ if __name__ == '__main__':
     parser.add_argument("--meta_batch_size",
                         default=256, type=int,
                         help="Batch size for training")
-    parser.add_argument("--save_interval", default=40, type=int)
+    parser.add_argument("--save_interval", default=20, type=int)
     parser.add_argument("--pol_hidden_dim", default=128, type=int)
     parser.add_argument("--critic_hidden_dim", default=128, type=int)
     parser.add_argument("--attend_heads", default=4, type=int)
@@ -193,8 +193,8 @@ if __name__ == '__main__':
     parser.add_argument("--use_gpu", default=True, action='store_true')
 
     parser.add_argument("--log_num",default=0, type=int)
-    parser.add_argument("--load_model", default=False, type=bool)
-    parser.add_argument("--model_path", default='models/Distral/run6/model_ep41.pt')
+    parser.add_argument("--load_model", default=True, type=bool)
+    parser.add_argument("--model_path", default='models/Intersec/run4/model_ep61.pt')
     parser.add_argument("--env_config", default='./config/config_jinan.json')
     config = parser.parse_args()
     run(config, 0)

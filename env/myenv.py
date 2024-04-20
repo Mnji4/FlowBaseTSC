@@ -29,7 +29,7 @@ class MyEnv(gym.Env):
         self.now_seconds = 0
         self.max_step = max_step
         self.seconds_per_step = 15
-        self.redtime = 0
+        self.redtime = 5
         self.info_enable = 0
         self.intersections = {}
         self.agents = {}
@@ -235,8 +235,8 @@ class MyEnv(gym.Env):
             for i, (agenti,t,wait_time) in enumerate(traj[:-1]):
                 # view_time = traj[min(i+1,len(traj)-1)][1]
                 # self.sa_history[t][2][agenti] += -(view_time-t)/100
-                gamma = 0.5
-                rs = np.array([o[2] for o in traj[i:min(i+2,len(traj))]])
+                gamma = 0.99
+                rs = np.array([o[2] for o in traj[i:min(i+10,len(traj))]])
                 weight_len = len(rs)
                 weights = gamma**np.arange(weight_len)
                 wait_time = (rs*weights).sum()
