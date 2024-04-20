@@ -29,15 +29,11 @@ def run(config, start = 0):
     np.random.seed(random.randint(100))
     
 
-    model = []
     if config.load_model:
-        filename = Path(config.model_path + 'meta_model_ep41.pt')
-        meta_model = Distral.init_from_save(filename, load_critic=True)
-        model = [meta_model]
-        for i in range(2):
-            filename = Path(config.model_path + 'model%i_ep41.pt' %(i))
-            model_ = Distral.init_from_save(filename, load_critic=True)
-            model.append(model_)
+        filename = Path('models/Intersec/run1/model_ep41.pt')
+        model1 = Distral.init_from_save(filename, load_critic=True)
+        filename = Path('models/Traj/run8/model_ep121.pt')
+        model2 = Distral.init_from_save(filename, load_critic=True)
 
 
     t = 0
