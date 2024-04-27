@@ -164,7 +164,7 @@ def run(config, start = 0):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("--method",default='Intersec', help="Name of environment")
-    parser.add_argument("--env_name",default='196')
+    parser.add_argument("--env_name",default='jinan')
     parser.add_argument("--dqn", default=1, type=int)
     parser.add_argument("--n_agent", default=1, type=int)
     parser.add_argument("--test_interval", default=10, type=int)
@@ -192,8 +192,9 @@ if __name__ == '__main__':
     parser.add_argument("--use_gpu", default=True, action='store_true')
 
     parser.add_argument("--log_num",default=0, type=int)
-    parser.add_argument("--load_model", default=False, type=bool)
+    parser.add_argument("--load_model", default=True, type=bool)
     parser.add_argument("--model_path", default='models/Intersec/run4/model_ep61.pt')
+    
     config = parser.parse_args()
     run(config, 0)
     # cProfile.run("")

@@ -17,18 +17,9 @@ def run(config, start = 0):
 
     
     model_dir = Path('models') / config.method / config.env_name
-    if not model_dir.exists():
-        run_num = 1
-    else:
-        exst_run_nums = [int(str(folder.name).split('run')[1]) for folder in
-                         model_dir.iterdir() if
-                         str(folder.name).startswith('run')]
-        if len(exst_run_nums) == 0:
-            run_num = 1
-        else:
-            run_num = max(exst_run_nums) + 1
-    curr_run = 'run%i' % run_num
-    run_dir = model_dir / curr_run
+    run_num = 1
+    str_run = 'run%i' % run_num
+    run_dir = model_dir / str_run
     log_dir = run_dir / 'logs'
     os.makedirs(log_dir)
 
@@ -164,7 +155,7 @@ def run(config, start = 0):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument("--method",default='Traj', help="Name of environment")
+    parser.add_argument("--method",default='Mix', help="Name of environment")
     parser.add_argument("--env_name",default='jinan')
     parser.add_argument("--dqn", default=1, type=int)
     parser.add_argument("--n_agent", default=1, type=int)
@@ -193,7 +184,7 @@ if __name__ == '__main__':
     parser.add_argument("--use_gpu", default=True, action='store_true')
 
     parser.add_argument("--log_num",default=0, type=int)
-    parser.add_argument("--load_model", default=True, type=bool)
+    parser.add_argument("--load_model", default=False, type=bool)
     parser.add_argument("--model_path", default='models/Traj/run23/model_ep181.pt')
     config = parser.parse_args()
     run(config, 0)
