@@ -1,7 +1,7 @@
 echo "Begin"
-python main_distilight.py --env_config ./config/config_196.json > log196.txt
-echo "newyork finished."
-python main_distilight.py --env_config ./config/config_hangzhou.json > log_hangzhou.txt
-echo "hangzhou script finished."
-python main_distilight.py --env_config ./config/config_jinan.json > log_jinan.txt
+for gamma in {0..5}
+do
+    echo "python main_traj.py --traj_gamma 0.$gamma > logs/jinan_gamma_0.$gamma.log"
+    python main_traj.py --traj_gamma 0.$gamma >> logs/jinan_gamma_0.$gamma.log
+done
 echo "jinan script finished."

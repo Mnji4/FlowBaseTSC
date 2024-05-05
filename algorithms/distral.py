@@ -72,7 +72,7 @@ class Distral(object):
         #                               **agent_init_params[0])
 
 
-    def step(self, obs, explore=False):
+    def step(self, obs, explore=False, return_all_q=False):
         """
         Take a step forward in environment with all agents
         Inputs:
@@ -98,8 +98,10 @@ class Distral(object):
         # probs = self.critic(critic_in, mask=mask_obs, return_all_q=False, return_probs=True, explore=explore)        
         # probs = probs.view(self.nagents,-1,self.a_dim)
 
-        logits = self.critic(critic_in, mask=[], return_all_q=False, return_logits=True, explore=explore)        
-        logits = logits.view(self.nagents,-1,128)
+        all_q = self.critic(critic_in, mask=[], return_all_q=True, return_logits=False, explore=explore)        
+        all_q = all_q.view(self.nagents,-1,self.a_dim)
+        if return_all_q:
+            act = all_q
         return [act[i] for i in range(self.nagents)]
         # return [act[i] for i in range(self.nagents)],[probs[i] for i in range(self.nagents)]
         #return [act[i] for i in range(self.nagents)],[logits[i] for i in range(self.nagents)]
@@ -191,7 +193,7 @@ class Distral(object):
         
         # Compute MSE loss
         loss = F.mse_loss(state_action_values, expected_state_action_values.detach())
-        if np.random.randint(1,100)<3:
+        if np.random.randint(1,100)<1:
             print(loss.item())
             print(next_state_values.mean().item(),expected_state_action_values.mean().item())
         # if(np.random.randint(0,100)<3):

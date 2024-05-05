@@ -93,7 +93,7 @@ class MyEnv(gym.Env):
             }
 
 
-        self.observation_space = gym.spaces.Box(low=-1e10, high=1e10, shape=(len(self.agents),33 + len(self.agents),))
+        self.observation_space = gym.spaces.Box(low=-1e10, high=1e10, shape=(len(self.agents),33 + len(self.agents) +24,))
         self.action_space = gym.spaces.Discrete(8)
 		# 其他成员
 
@@ -129,7 +129,7 @@ class MyEnv(gym.Env):
             n = len(candidates)
             s = self.sa_history[self.now_seconds-self.seconds_per_step][0][agenti]
             a = self.sa_history[self.now_seconds-self.seconds_per_step][1][agenti]
-            r = (-self.seconds_per_step)*n/20
+            r = (-self.seconds_per_step)*n/2
             next_s = self.obs[agenti]
             _obs = np.expand_dims(s,(0,1))
             _actions = np.expand_dims(a,(0,1))
@@ -235,12 +235,11 @@ class MyEnv(gym.Env):
             for i, (agenti,t,wait_time) in enumerate(traj[:-1]):
                 # view_time = traj[min(i+1,len(traj)-1)][1]
                 # self.sa_history[t][2][agenti] += -(view_time-t)/100
-                gamma = 0.99
                 rs = np.array([o[2] for o in traj[i:min(i+10,len(traj))]])
                 weight_len = len(rs)
-                weights = gamma**np.arange(weight_len)
+                weights = self.traj_gamma**np.arange(weight_len)
                 wait_time = (rs*weights).sum()
-                self.sa_history[t][2][agenti] += -(wait_time)/2
+                self.sa_history[t][2][agenti] += -(wait_time)/5
         for ti, (s,a,r) in self.sa_history.items():
             if (ti + self.seconds_per_step) not in self.sa_history:
                 continue
@@ -271,6 +270,9 @@ class MyEnv(gym.Env):
         self.effective_count = self.eng.get_lane_effective_vehicle_count(self.seconds_per_step*11.111*1)
         self.effective_waiting_count = self.eng.get_lane_effective_waiting_vehicle_count(self.seconds_per_step*11.111*1)
         self.effective_vehicles = self.eng.get_lane_effective_vehicles(self.seconds_per_step*11.111*1)
+        self.effective_count2 = self.eng.get_lane_effective_vehicle_count(self.seconds_per_step*11.111*2)
+        self.effective_waiting_count2 = self.eng.get_lane_effective_waiting_vehicle_count(self.seconds_per_step*11.111*2)
+        self.effective_vehicles2 = self.eng.get_lane_effective_vehicles(self.seconds_per_step*11.111*2)
         self.vehicles = self.eng.get_vehicles(True)
             
     def _update_vehicle_intersection(self):
@@ -295,32 +297,38 @@ class MyEnv(gym.Env):
                 if obs[ai][movement] == -1:
                     obs[ai][movement] = 0
                     obs[ai][movement+12] = 0
-                
+                    obs[ai][movement+24] = 0
                 # effective running 
                 obs[ai][movement] += self.effective_count[inlane] - self.effective_waiting_count[inlane]
                 # effective pressure
                 obs[ai][movement+12] = +self.effective_waiting_count[inlane]
+                obs[ai][movement+24] += self.effective_count2[inlane] - self.effective_waiting_count2[inlane]
+                obs[ai][movement+36] = +self.effective_waiting_count2[inlane]
                 self.pressure[ai] += self.lane_waiting_vehicle_count[inlane]
                 self.queue[ai] += self.lane_waiting_vehicle_count[inlane]
                 for outlanei in range(3):
                     outlane = f"{roadlink['endRoad']}_{outlanei}"
                     # obs[ai][movement+12] -= self.effective_waiting_count[outlane]/3
                     self.pressure[ai]  -= self.lane_waiting_vehicle_count[outlane]
-                # for v in self.lane_vehicle[inlane]:
-                #     distance = self.roads[roadlink['startRoad']]['length'] - self.vehicle_distance[v]
-                #     if distance < 111:
-                #         cell = int(distance//11.111)
-                #         obs[ai][44+movement*10+cell] += 1
+                # for v in self.effective_vehicles[inlane]:
+                #     info = self.eng.get_vehicle_info(v)
+                #     len_rest_route = len(info["route"])
+                #     obs[ai][movement+24] += len_rest_route
+                # for v in self.lane_vehicles[inlane]:
+                    # distance = self.roads[roadlink['startRoad']]['length'] - self.vehicle_distance[v]
+                    # if distance < 111:
+                    #     cell = int(distance//11.111)
+                    #     obs[ai][33 + len(self.agents)+movement*10+cell] += 1
                 
         self.effective_pressure = obs[:,12:24].sum(1)
         onehot_acts = np.zeros((len(self.agents), 8))
         if self.action is not None and len(self.action):
             onehot_acts = np.take(action_to_onehot, self.action, axis=0) 
-        obs[:, 24:32] = onehot_acts
+        obs[:, 48+0:56+0] = onehot_acts
         onehot_agenti = np.eye(len(self.agents))
-        obs[:, 32:32+len(self.agents)] = onehot_agenti
-        obs[:, 32+len(self.agents)] = np.full((len(self.agents)),self.now_seconds/self.seconds_per_step)
-
+        obs[:, 56+0:56+len(self.agents)+0] = onehot_agenti
+        obs[:, 56+len(self.agents)+0] = np.full((len(self.agents)),self.now_seconds/self.seconds_per_step)
+        
         return obs
 
     def _get_dones(self):

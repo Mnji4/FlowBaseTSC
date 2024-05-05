@@ -44,7 +44,7 @@ def run(config, start = 0):
                                 [env.observation_space.shape[1] for i in range(1)],
                                 [env.action_space.n for i in range(1)])
     env.env.env.traj_buffer = replay_buffer
-    
+    env.env.env.traj_gamma = config.traj_gamma
     model = []
     if config.load_model:
         filename = Path(config.model_path)
@@ -171,13 +171,13 @@ if __name__ == '__main__':
     parser.add_argument("--test_interval", default=10, type=int)
     parser.add_argument("--n_rollout_threads", default=1, type=int)
     parser.add_argument("--buffer_length", default=int(1e7), type=int)
-    parser.add_argument("--n_episodes", default=200, type=int)
+    parser.add_argument("--n_episodes", default=101, type=int)
     parser.add_argument("--episode_length", default=3600, type=int)
     parser.add_argument("--steps_per_update", default=10, type=int)
     parser.add_argument("--num_updates", default=4, type=int,
                         help="Number of updates per update cycle")
     parser.add_argument("--batch_size",
-                        default=511, type=int,
+                        default=256, type=int,
                         help="Batch size for training")    
     parser.add_argument("--meta_batch_size",
                         default=256, type=int,
@@ -189,12 +189,13 @@ if __name__ == '__main__':
     parser.add_argument("--pi_lr", default=0.0002, type=float)
     parser.add_argument("--q_lr", default=0.001, type=float)
     parser.add_argument("--tau", default=0.001, type=float)
-    parser.add_argument("--gamma", default=0., type=float)
+    parser.add_argument("--gamma", default=0.99, type=float)
+    parser.add_argument("--traj_gamma", default=0.99, type=float)
     parser.add_argument("--use_gpu", default=True, action='store_true')
 
     parser.add_argument("--log_num",default=0, type=int)
-    parser.add_argument("--load_model", default=True, type=bool)
-    parser.add_argument("--model_path", default='models/Traj/run23/model_ep181.pt')
+    parser.add_argument("--load_model", default=False, type=bool)
+    parser.add_argument("--model_path", default='models/Intersec/jinan/run3/model_ep61.pt')
     config = parser.parse_args()
     run(config, 0)
     # cProfile.run("")
