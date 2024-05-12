@@ -232,17 +232,17 @@ class MyEnv(gym.Env):
     def _construct_samples(self):
         for v,traj in self.vehicle_traj.items():
             # endt = traj[-1][1]
-            traj_weights = np.arange(1,len(traj)+1)
+            # traj_weights = np.arange(1,len(traj)+1)
             for i, (agenti,t,wait_time) in enumerate(traj[:]):
                 # view_time = traj[min(i+1,len(traj)-1)][1]
                 # self.sa_history[t][2][agenti] += -(view_time-t)/100
                 if(t not in self.sa_history): 
                     continue
-                # rs = np.array([o[2] for o in traj[i:min(i+10,len(traj))]])
-                rs = np.array([o[2] for o in traj[i:]])
+                rs = np.array([o[2] for o in traj[min(i,len(traj)):min(i+2,len(traj))]])
+                # rs = np.array([o[2] for o in traj[i:]])
                 weight_len = len(rs)
-                weights = self.traj_gamma**np.arange(weight_len)/traj_weights[len(traj)-weight_len:]
-                wait_time = (rs*weights).sum()+rs[0]
+                weights = self.traj_gamma**np.arange(weight_len)#/traj_weights[len(traj)-weight_len:]
+                wait_time = (rs*weights).sum()
                 self.sa_history[t][2][agenti] += -(wait_time)/5
         for ti, (s,a,r) in self.sa_history.items():
             if (ti + self.seconds_per_step) not in self.sa_history:
