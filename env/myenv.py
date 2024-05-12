@@ -228,17 +228,21 @@ class MyEnv(gym.Env):
                         continue
                     if v not in self.vehicle_traj:
                         self.vehicle_traj[v] = []
-                    self.vehicle_traj[v].append((agenti,self.now_seconds,waiting*1))
+                    self.vehicle_traj[v].append([agenti,self.now_seconds,waiting*1])
     def _construct_samples(self):
         for v,traj in self.vehicle_traj.items():
             # endt = traj[-1][1]
-            for i, (agenti,t,wait_time) in enumerate(traj[:-1]):
+            traj_weights = np.arange(1,len(traj)+1)
+            for i, (agenti,t,wait_time) in enumerate(traj[:]):
                 # view_time = traj[min(i+1,len(traj)-1)][1]
                 # self.sa_history[t][2][agenti] += -(view_time-t)/100
-                rs = np.array([o[2] for o in traj[i:min(i+10,len(traj))]])
+                if(t not in self.sa_history): 
+                    continue
+                # rs = np.array([o[2] for o in traj[i:min(i+10,len(traj))]])
+                rs = np.array([o[2] for o in traj[i:]])
                 weight_len = len(rs)
-                weights = self.traj_gamma**np.arange(weight_len)
-                wait_time = (rs*weights).sum()
+                weights = self.traj_gamma**np.arange(weight_len)/traj_weights[len(traj)-weight_len:]
+                wait_time = (rs*weights).sum()+rs[0]
                 self.sa_history[t][2][agenti] += -(wait_time)/5
         for ti, (s,a,r) in self.sa_history.items():
             if (ti + self.seconds_per_step) not in self.sa_history:
@@ -302,8 +306,8 @@ class MyEnv(gym.Env):
                 obs[ai][movement] += self.effective_count[inlane] - self.effective_waiting_count[inlane]
                 # effective pressure
                 obs[ai][movement+12] = +self.effective_waiting_count[inlane]
-                obs[ai][movement+24] += self.effective_count2[inlane] - self.effective_waiting_count2[inlane]
-                obs[ai][movement+36] = +self.effective_waiting_count2[inlane]
+                obs[ai][movement+24] += self.effective_count2[inlane] - self.effective_waiting_count2[inlane] - obs[ai][movement]
+                obs[ai][movement+36] = +self.effective_waiting_count2[inlane] - obs[ai][movement+12]
                 self.pressure[ai] += self.lane_waiting_vehicle_count[inlane]
                 self.queue[ai] += self.lane_waiting_vehicle_count[inlane]
                 for outlanei in range(3):
