@@ -145,3 +145,23 @@ def sep_clip_grad_norm(parameters, max_norm, norm_type=2):
         if clip_coef < 1:
             p.grad.data.mul_(clip_coef)
 
+def calculate_mutual_information_torch(joint_distribution):
+    # 确保输入是一个PyTorch张量
+    joint_distribution = torch.tensor(joint_distribution, dtype=torch.float32)
+    
+    # 计算边缘概率分布 P(X) 和 P(Y)
+    with torch.no_grad():  # 确保在计算过程中不计算梯度
+        marginal_x = torch.sum(joint_distribution, dim=1)
+        marginal_y = torch.sum(joint_distribution, dim=0)
+        
+        # 避免除以零，给边缘概率分布添加一个很小的常数epsilon
+        epsilon = 1e-10
+        marginal_x = torch.clamp(marginal_x, min=epsilon)
+        marginal_y = torch.clamp(marginal_y, min=epsilon)
+        
+        # 计算互信息的对数部分，使用torch.log2计算以2为底的对数
+        mutual_info_log = joint_distribution * torch.log2(joint_distribution / (marginal_x.unsqueeze(1) * marginal_y.unsqueeze(0)))
+    
+    # 求和得到互信息
+    mutual_info = torch.sum(mutual_info_log)
+    return mutual_info.item()
