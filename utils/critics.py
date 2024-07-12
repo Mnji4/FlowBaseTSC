@@ -24,15 +24,12 @@ class SingleCritic(nn.Module):
             attend_heads (int): Number of attention heads to use (use a number
                                 that hidden_dim is divisible by)
         """
-        super(SingleCritic, self).__init__()
+        super().__init__()
         self.sa_sizes = sa_sizes
-        self.nagents = len(sa_sizes)
-
         self.hidden_dim = hidden_dim
 
         self.epsilon = 0.9
         sdim, adim = sa_sizes[0]
-        idim = sdim + adim
         odim = adim
         self.state_encoder = nn.Sequential()
         if norm_in:
@@ -117,4 +114,91 @@ class SingleCritic(nn.Module):
         else:
             return all_rets
 
+class PairCritic(SingleCritic):
+    def __init__(self, sa_sizes, hidden_dim=64, norm_in=True):
+        super().__init__()
+    
+        self.sa_sizes = sa_sizes
+        self.hidden_dim = hidden_dim
 
+        self.epsilon = 0.9
+        sdim, adim = sa_sizes[0]
+        odim = adim**2
+        self.state_encoder1 = nn.Sequential()
+        if norm_in:
+            self.state_encoder1.add_module('s_enc1_bn', nn.BatchNorm1d(
+                                        sdim, affine=False))
+        self.state_encoder1.add_module('s_enc1_fc1', nn.Linear(sdim,
+                                                        hidden_dim))
+        self.state_encoder1.add_module('s_enc1_nl', nn.LeakyReLU())
+
+        self.state_encoder2 = nn.Sequential()
+        if norm_in:
+            self.state_encoder2.add_module('s_enc2_bn', nn.BatchNorm1d(
+                                        sdim, affine=False))
+        self.state_encoder2.add_module('s_enc2_fc1', nn.Linear(sdim,
+                                                        hidden_dim))
+        self.state_encoder2.add_module('s_enc2_nl', nn.LeakyReLU())
+
+        self.critic = nn.Sequential()
+        self.critic.add_module('critic_fc1', nn.Linear(hidden_dim,
+                                                    hidden_dim))
+        self.critic.add_module('critic_nl', nn.LeakyReLU())
+        self.critic.add_module('critic_fc2', nn.Linear(hidden_dim, odim))
+
+    def forward(self, inps, return_q=False, return_all_q=False,return_probs = False,return_logits=False,
+                regularize=False, return_act=False, explore=False, ):
+
+        states1,states2 = inps
+
+        s_encoding1 = self.state_encoder1(states1)
+        s_encoding2 = self.state_encoder1(states2)
+        all_rets = []
+        agent_rets = []
+        
+        #all_q = self.critic(s_encoding)
+        
+        h = self.critic[0](s_encoding1+s_encoding2)
+        logits = self.critic[1](h)
+        all_q = self.critic[2](logits)
+        
+        probs = F.softmax(all_q, dim=1)
+        if torch.any(torch.isnan(probs)):
+            print()
+        on_gpu = probs.is_cuda
+
+        if explore:
+            
+            int_acs, act = categorical_sample(probs, use_cuda=on_gpu) # epsilon_greedy(self.epsilon, probs, use_cuda=on_gpu) 
+        else:
+            act = onehot_from_logits(probs)
+
+        if return_act:
+            agent_rets.append(act)
+
+        if return_probs:
+            agent_rets.append(probs)
+        if return_q:
+            q = all_q.max(dim=1, keepdim=True)[0]
+            agent_rets.append(q)
+        if return_all_q:
+            agent_rets.append(all_q)
+        if return_logits:
+            agent_rets.append(logits)
+
+        if regularize:
+            # regularize magnitude of attention logits
+            attend_mag_reg = 1e-3 
+            regs = (attend_mag_reg,)
+            agent_rets.append(regs)
+        # if return_attend:
+        #     agent_rets.append(np.array(all_attend_probs))
+
+        if len(agent_rets) == 1:
+            all_rets.append(agent_rets[0])
+        else:
+            all_rets.append(agent_rets)
+        if len(all_rets) == 1:
+            return all_rets[0]
+        else:
+            return all_rets
