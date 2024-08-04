@@ -30,7 +30,7 @@ class SingleCritic(nn.Module):
 
         self.epsilon = 0.9
         sdim, adim = sa_sizes[0]
-        odim = adim
+        out_dim = adim
         self.state_encoder = nn.Sequential()
         if norm_in:
             self.state_encoder.add_module('s_enc_bn', nn.BatchNorm1d(
@@ -43,8 +43,8 @@ class SingleCritic(nn.Module):
         self.critic.add_module('critic_fc1', nn.Linear(hidden_dim,
                                                     hidden_dim))
         self.critic.add_module('critic_nl', nn.LeakyReLU())
-        self.critic.add_module('critic_fc2', nn.Linear(hidden_dim, odim))
-        #self.fc2 = nn.Linear(hidden_dim, odim)
+        self.critic.add_module('critic_fc2', nn.Linear(hidden_dim, out_dim))
+        #self.fc2 = nn.Linear(hidden_dim, out_dim)
 
     def forward(self, inps, mask=None, agents=None, return_q=False, return_all_q=False,return_probs = False,return_logits=False,
                 regularize=False, return_attend=False,return_act=False, explore=False, logger=None, niter=0):
@@ -97,14 +97,6 @@ class SingleCritic(nn.Module):
         if return_logits:
             agent_rets.append(logits)
 
-        if regularize:
-            # regularize magnitude of attention logits
-            attend_mag_reg = 1e-3 
-            regs = (attend_mag_reg,)
-            agent_rets.append(regs)
-        # if return_attend:
-        #     agent_rets.append(np.array(all_attend_probs))
-
         if len(agent_rets) == 1:
             all_rets.append(agent_rets[0])
         else:
@@ -112,9 +104,9 @@ class SingleCritic(nn.Module):
         if len(all_rets) == 1:
             return all_rets[0]
         else:
-            return all_rets
+            return all_rets 
 
-class PairCritic(SingleCritic):
+class PairCritic(nn.Module):
     def __init__(self, sa_sizes, hidden_dim=64, norm_in=True):
         super().__init__()
     
@@ -123,7 +115,7 @@ class PairCritic(SingleCritic):
 
         self.epsilon = 0.9
         sdim, adim = sa_sizes[0]
-        odim = adim**2
+        out_dim = adim**2
         self.state_encoder1 = nn.Sequential()
         if norm_in:
             self.state_encoder1.add_module('s_enc1_bn', nn.BatchNorm1d(
@@ -144,7 +136,7 @@ class PairCritic(SingleCritic):
         self.critic.add_module('critic_fc1', nn.Linear(hidden_dim,
                                                     hidden_dim))
         self.critic.add_module('critic_nl', nn.LeakyReLU())
-        self.critic.add_module('critic_fc2', nn.Linear(hidden_dim, odim))
+        self.critic.add_module('critic_fc2', nn.Linear(hidden_dim, out_dim))
 
     def forward(self, inps, return_q=False, return_all_q=False,return_probs = False,return_logits=False,
                 regularize=False, return_act=False, explore=False, ):
@@ -185,14 +177,6 @@ class PairCritic(SingleCritic):
             agent_rets.append(all_q)
         if return_logits:
             agent_rets.append(logits)
-
-        if regularize:
-            # regularize magnitude of attention logits
-            attend_mag_reg = 1e-3 
-            regs = (attend_mag_reg,)
-            agent_rets.append(regs)
-        # if return_attend:
-        #     agent_rets.append(np.array(all_attend_probs))
 
         if len(agent_rets) == 1:
             all_rets.append(agent_rets[0])

@@ -48,6 +48,7 @@ class MyEnv(gym.Env):
         self.vehicle_duration = {}
         self.vehicle_traj = {}
         self.sa_history = {}
+        
         self.flow_buffer = None
         self.traj_buffer = None
         for o in a['roads']:
@@ -81,6 +82,13 @@ class MyEnv(gym.Env):
             self.intersections[o['id']]['have_signal'] = agent
         self.agentlist = list(self.agents.keys())
         self.roads = {}
+        self.xy = np.zeros((len(self.agentlist),2))
+        for each in a['intersections']:
+            if(each['id'] not in self.agentlist): continue
+            
+            self.xy[self.agentlist.index(each['id'])][0] = each['point']['x']
+            self.xy[self.agentlist.index(each['id'])][1] = each['point']['y']
+            
         for o in a['roads']:
 
             self.roads[o['id']] = {
