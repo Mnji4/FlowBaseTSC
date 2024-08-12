@@ -14,22 +14,18 @@ class SingleCritic(nn.Module):
     observation and action, and can also attend over the other agents' encoded
     observations and actions.
     """
-    def __init__(self, sa_sizes, hidden_dim=64, norm_in=True):
+    def __init__(self, sdim, adim, hidden_dim=64, norm_in=True):
         """
         Inputs:
-            sa_sizes (list of (int, int)): Size of state and action spaces per
-                                          agent
             hidden_dim (int): Number of hidden dimensions
             norm_in (bool): Whether to apply BatchNorm to input
             attend_heads (int): Number of attention heads to use (use a number
                                 that hidden_dim is divisible by)
         """
         super().__init__()
-        self.sa_sizes = sa_sizes
         self.hidden_dim = hidden_dim
 
         self.epsilon = 0.9
-        sdim, adim = sa_sizes[0]
         out_dim = adim
         self.state_encoder = nn.Sequential()
         if norm_in:
@@ -107,14 +103,12 @@ class SingleCritic(nn.Module):
             return all_rets 
 
 class PairCritic(nn.Module):
-    def __init__(self, sa_sizes, hidden_dim=64, norm_in=True):
+    def __init__(self, sdim, adim, hidden_dim=64, norm_in=True):
         super().__init__()
     
-        self.sa_sizes = sa_sizes
         self.hidden_dim = hidden_dim
 
         self.epsilon = 0.9
-        sdim, adim = sa_sizes[0]
         out_dim = adim**2
         self.state_encoder1 = nn.Sequential()
         if norm_in:

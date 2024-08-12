@@ -3,7 +3,7 @@ import torch.nn.functional as F
 from torch.optim import Adam, SGD, RMSprop
 from utils.misc import soft_update, hard_update, enable_gradients, disable_gradients
 from utils.agents import AttentionAgent
-from utils.critics import SingleCritic 
+from utils.critics import SingleCritic,PairCritic
 from utils.misc import onehot_from_logits, categorical_sample
 import numpy as np
 MSELoss = torch.nn.MSELoss()
@@ -14,7 +14,7 @@ class Distral(object):
     Wrapper class for SAC agents with central attention critic in multi-agent
     task
     """
-    def __init__(self, agent_init_params, sa_size,
+    def __init__(self, agent_init_params, s_dim,a_dim,n_agent,
                  gamma=0.95, tau=0.01, pi_lr=0.01, q_lr=0.001,
                  pol_hidden_dim=128,
                  critic_hidden_dim=128, attend_heads=4,
@@ -35,18 +35,17 @@ class Distral(object):
                                   policy entropy)
             hidden_dim (int): Number of hidden dimensions for networks
         """
-        self.nagents = len(sa_size)
-        self.s_dim = sa_size[0][0]
-        self.a_dim = sa_size[0][1]
-
+        self.s_dim = s_dim
+        self.a_dim = a_dim
+        self.nagents = n_agent
 
         # self.agents = [AttentionAgent(lr=pi_lr,
         #                               hidden_dim=pol_hidden_dim,
         #                               **params)
         #                  for params in agent_init_params]
-        self.critic = SingleCritic(sa_size[:5], hidden_dim=critic_hidden_dim,
+        self.critic = SingleCritic(self.s_dim,self.a_dim, hidden_dim=critic_hidden_dim,
                                        norm_in = False)
-        self.target_critic = SingleCritic(sa_size[:5], hidden_dim=critic_hidden_dim,
+        self.target_critic = SingleCritic(self.s_dim,self.a_dim, hidden_dim=critic_hidden_dim,
                                               norm_in = False)
         hard_update(self.target_critic, self.critic)
 
@@ -327,14 +326,15 @@ class Distral(object):
         #     sa_size.append((obsp.shape[0], acsp.n))
         agent_init_params = [{'num_in_pol': s_dim,
                                        'num_out_pol': a_dim} for i in range(n_agent)]
-        sa_size = [(s_dim,a_dim) for i in range(n_agent)]
 
         init_dict = {'gamma': gamma, 'tau': tau,
                      'pi_lr': pi_lr, 'q_lr': q_lr,
                      'pol_hidden_dim': pol_hidden_dim,
                      'critic_hidden_dim': critic_hidden_dim,
                      'agent_init_params': agent_init_params,
-                     'sa_size': sa_size}
+                     's_dim': s_dim,
+                     'a_dim': a_dim,
+                     'n_agent': n_agent}
         instance = cls(**init_dict)
         instance.init_dict = init_dict
         return instance
@@ -356,3 +356,31 @@ class Distral(object):
                     if torch.is_tensor(v):
                         state[k] = v.cuda()
         return instance
+
+class PairAgent(Distral):
+    def __init__(self, agent_init_params, s_dim,a_dim,
+                 gamma=0.95, tau=0.01, pi_lr=0.01, q_lr=0.001,
+                 pol_hidden_dim=128,
+                 critic_hidden_dim=128, attend_heads=4,
+                 **kwargs):
+        """
+        Inputs:
+            hidden_dim (int): Number of hidden dimensions
+            norm_in (bool): Whether to apply BatchNorm to input
+            attend_heads (int): Number of attention heads to use (use a number
+                                that hidden_dim is divisible by)
+        """
+        super().__init__(self, agent_init_params, s_dim,a_dim,
+                 gamma=0.95, tau=0.01, pi_lr=0.01, q_lr=0.001,
+                 pol_hidden_dim=128,
+                 critic_hidden_dim=128, attend_heads=4,
+                 **kwargs)
+        self.critic = PairCritic(self.s_dim,self.a_dim, hidden_dim=critic_hidden_dim,
+                                       norm_in = False)
+        self.target_critic = PairCritic(self.s_dim,self.a_dim, hidden_dim=critic_hidden_dim,
+                                              norm_in = False)
+        hard_update(self.target_critic, self.critic)
+
+
+        self.critic_optimizer = Adam(self.critic.parameters(), lr=q_lr,
+                                     weight_decay=1e-3)
