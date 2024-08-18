@@ -156,7 +156,7 @@ class PairCritic(nn.Module):
         states1,states2 = inps
 
         s_encoding1 = self.state_encoder1(states1)
-        s_encoding2 = self.state_encoder1(states2)
+        s_encoding2 = self.state_encoder2(states2)
         all_rets = []
         agent_rets = []
         
