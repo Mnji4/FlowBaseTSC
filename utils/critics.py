@@ -103,6 +103,7 @@ class SingleCritic(nn.Module):
             return all_rets 
 
 class PairCritic(nn.Module):
+    # 输出要弄成2*adim
     def __init__(self, sdim, adim, hidden_dim=64, norm_in=True):
         super().__init__()
     
@@ -132,6 +133,23 @@ class PairCritic(nn.Module):
         self.critic.add_module('critic_nl', nn.LeakyReLU())
         self.critic.add_module('critic_fc2', nn.Linear(hidden_dim, out_dim))
 
+    def marginalize_and_reshape(self,tensor):
+        n, _ = tensor.shape
+        
+        # 重塑为 [batch, n, 8, 8]
+        reshaped_tensor = tensor.view(n, 8, 8)
+        
+        # 计算第一个8维动作的边缘概率分布
+        marginal_action_1 = reshaped_tensor.sum(dim=2)  # 沿着最后一个维度求和
+        
+        # 计算第二个8维动作的边缘概率分布
+        marginal_action_2 = reshaped_tensor.sum(dim=1)  # 沿着倒数第二个维度求和
+        
+        # # 调整维度顺序为 [2, batch, n, 8]
+        # result = torch.stack([marginal_action_1, marginal_action_2], dim=0)
+
+        return marginal_action_1, marginal_action_2
+
     def forward(self, inps, return_q=False, return_all_q=False,return_probs = False,return_logits=False,
                 regularize=False, return_act=False, explore=False, ):
 
@@ -146,37 +164,27 @@ class PairCritic(nn.Module):
         
         h = self.critic[0](s_encoding1+s_encoding2)
         logits = self.critic[1](h)
-        all_q = self.critic[2](logits)
-        
-        probs = F.softmax(all_q, dim=1)
-        if torch.any(torch.isnan(probs)):
+        joint_q = self.critic[2](logits)
+        marginalize_q1,marginalize_q2 = self.marginalize_and_reshape(joint_q)
+        probs1 = F.softmax(marginalize_q1, dim=1)
+        probs2 = F.softmax(marginalize_q2, dim=1)
+        if torch.any(torch.isnan(probs1)):
             print()
-        on_gpu = probs.is_cuda
+        on_gpu = probs1.is_cuda
 
         if explore:
             
-            int_acs, act = categorical_sample(probs, use_cuda=on_gpu) # epsilon_greedy(self.epsilon, probs, use_cuda=on_gpu) 
+            int_acs, act1 = categorical_sample(probs1, use_cuda=on_gpu) # epsilon_greedy(self.epsilon, probs, use_cuda=on_gpu) 
+            int_acs, act2 = categorical_sample(probs2, use_cuda=on_gpu)
         else:
-            act = onehot_from_logits(probs)
+            act1 = onehot_from_logits(probs1)
+            act2 = onehot_from_logits(probs1)
 
         if return_act:
-            agent_rets.append(act)
+            ret = torch.stack([act1,act2])
 
-        if return_probs:
-            agent_rets.append(probs)
-        if return_q:
-            q = all_q.max(dim=1, keepdim=True)[0]
-            agent_rets.append(q)
         if return_all_q:
-            agent_rets.append(all_q)
-        if return_logits:
-            agent_rets.append(logits)
+            ret = torch.stack([marginalize_q1,marginalize_q2])
 
-        if len(agent_rets) == 1:
-            all_rets.append(agent_rets[0])
-        else:
-            all_rets.append(agent_rets)
-        if len(all_rets) == 1:
-            return all_rets[0]
-        else:
-            return all_rets
+
+        return ret

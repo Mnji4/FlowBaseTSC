@@ -6,7 +6,7 @@ class Grouper():
         self.in_group = np.zeros(self.n)
         self.group_pos = np.full((self.n,2),-1)
         self.groups = np.full((self.n//2,2,2),-1)
-        self.xy = env.xy
+        self.xy = env.env.xy
         self.num_x = len(set(self.xy[:,0]))
         self.num_y = len(set(self.xy[:,1]))
     def grouping_ew(self):

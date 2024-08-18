@@ -14,7 +14,7 @@ class Distral(object):
     Wrapper class for SAC agents with central attention critic in multi-agent
     task
     """
-    def __init__(self, agent_init_params, s_dim,a_dim,n_agent,
+    def __init__(self, s_dim,a_dim,n_agent,
                  gamma=0.95, tau=0.01, pi_lr=0.01, q_lr=0.001,
                  pol_hidden_dim=128,
                  critic_hidden_dim=128, attend_heads=4,
@@ -55,7 +55,6 @@ class Distral(object):
         #self.critic_optimizer = Adam(self.critic.parameters(), lr=q_lr, weight_decay=1e-3)
         self.critic_optimizer = Adam(self.critic.parameters(), lr=q_lr,
                                      weight_decay=1e-3)
-        self.agent_init_params = agent_init_params
         self.gamma = gamma
         self.tau = tau
         self.pi_lr = pi_lr
@@ -88,22 +87,23 @@ class Distral(object):
         #     corrent_5obs.append(torch.stack([obs[i] if i == 0 else tmp_obs for i in range(5)]))
         # critic_in = list(torch.cat(corrent_5obs,dim = 1))
         critic_in = obs
-        with torch.no_grad():
-            act = self.critic(critic_in, mask=[], return_all_q=False, return_act=True, explore=explore)
+        if not return_all_q:
+            with torch.no_grad():
+                act = self.critic(critic_in, return_all_q=False, return_act=True, explore=explore)
 
 
-        act = act.view(self.nagents,-1,self.a_dim)
+            act = act.view(self.nagents,-1,self.a_dim)
 
         # probs = self.critic(critic_in, mask=mask_obs, return_all_q=False, return_probs=True, explore=explore)        
         # probs = probs.view(self.nagents,-1,self.a_dim)
 
-        all_q = self.critic(critic_in, mask=[], return_all_q=True, return_logits=False, explore=explore)        
-        all_q = all_q.view(self.nagents,-1,self.a_dim)
+
         if return_all_q:
+            all_q = self.critic(critic_in, return_all_q=True, return_logits=False, explore=explore)        
+            all_q = all_q.view(self.nagents,-1,self.a_dim)
             act = all_q
+        return act
         return [act[i] for i in range(self.nagents)]
-        # return [act[i] for i in range(self.nagents)],[probs[i] for i in range(self.nagents)]
-        #return [act[i] for i in range(self.nagents)],[logits[i] for i in range(self.nagents)]
     def update_critic(self, sample, soft=True, logger=None, **kwargs):
         """
         Update central critic for all agents
@@ -324,14 +324,11 @@ class Distral(object):
         #     agent_init_params.append({'num_in_pol': obsp.shape[0],
         #                               'num_out_pol': acsp.n})
         #     sa_size.append((obsp.shape[0], acsp.n))
-        agent_init_params = [{'num_in_pol': s_dim,
-                                       'num_out_pol': a_dim} for i in range(n_agent)]
 
         init_dict = {'gamma': gamma, 'tau': tau,
                      'pi_lr': pi_lr, 'q_lr': q_lr,
                      'pol_hidden_dim': pol_hidden_dim,
                      'critic_hidden_dim': critic_hidden_dim,
-                     'agent_init_params': agent_init_params,
                      's_dim': s_dim,
                      'a_dim': a_dim,
                      'n_agent': n_agent}
@@ -358,7 +355,7 @@ class Distral(object):
         return instance
 
 class PairAgent(Distral):
-    def __init__(self, agent_init_params, s_dim,a_dim,
+    def __init__(self, s_dim,a_dim,n_agent,
                  gamma=0.95, tau=0.01, pi_lr=0.01, q_lr=0.001,
                  pol_hidden_dim=128,
                  critic_hidden_dim=128, attend_heads=4,
@@ -370,17 +367,35 @@ class PairAgent(Distral):
             attend_heads (int): Number of attention heads to use (use a number
                                 that hidden_dim is divisible by)
         """
-        super().__init__(self, agent_init_params, s_dim,a_dim,
-                 gamma=0.95, tau=0.01, pi_lr=0.01, q_lr=0.001,
-                 pol_hidden_dim=128,
-                 critic_hidden_dim=128, attend_heads=4,
+        super().__init__(s_dim,a_dim,n_agent,
+                 gamma, tau, pi_lr, q_lr,
+                 pol_hidden_dim,
+                 critic_hidden_dim, attend_heads,
                  **kwargs)
         self.critic = PairCritic(self.s_dim,self.a_dim, hidden_dim=critic_hidden_dim,
                                        norm_in = False)
         self.target_critic = PairCritic(self.s_dim,self.a_dim, hidden_dim=critic_hidden_dim,
                                               norm_in = False)
+        self.a_dim = a_dim**2
         hard_update(self.target_critic, self.critic)
 
 
         self.critic_optimizer = Adam(self.critic.parameters(), lr=q_lr,
                                      weight_decay=1e-3)
+    def step(self, obs, explore=False, return_all_q=False):
+        critic_in = obs
+        if not return_all_q:
+            with torch.no_grad():
+                act = self.critic(critic_in, return_all_q=False, return_act=True, explore=explore)
+
+
+            act = act.view(self.nagents,-1,self.a_dim)
+
+        # probs = self.critic(critic_in, mask=mask_obs, return_all_q=False, return_probs=True, explore=explore)        
+        # probs = probs.view(self.nagents,-1,self.a_dim)
+
+
+        if return_all_q:
+            all_q = self.critic(critic_in, return_all_q=True, return_logits=False, explore=explore)       
+            act = all_q
+        return act

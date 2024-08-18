@@ -7,12 +7,13 @@ from pathlib import Path
 from utils.buffer import ReplayBuffer,ReplayBufferTime
 # from algorithms.attention_sac1 import AttentionSAC
 #from algorithms.attention_ppo1 import AttentionPPO
-from algorithms.distral import Distral
+from algorithms.distral import Distral, PairAgent
 import json
 from utils.ma_env_time import MaEnv,make_env,make_parallel_env
 from utils.misc import onehot_from_logits, categorical_sample, epsilon_greedy
 from tqdm import trange
 import cProfile
+from utils.grouper import Grouper
 def run(config, start = 0):
     #count_cloest()
     best_rew = 0
@@ -42,6 +43,8 @@ def run(config, start = 0):
     np.random.seed(run_num)
     config_file = f"./config/config_{config.env_name}.json"
     env = make_parallel_env(config_file, config.n_rollout_threads, run_num)
+    g = Grouper(env.env)
+    g.grouping_ns()
     replay_buffer_inter = ReplayBufferTime(config.buffer_length, 1,
                                 [env.observation_space.shape[1] for i in range(1)],
                                 [env.action_space.n for i in range(1)])
@@ -49,7 +52,7 @@ def run(config, start = 0):
                                 [env.observation_space.shape[1] for i in range(1)],
                                 [env.action_space.n for i in range(1)])
     env.env.env.traj_buffer = replay_buffer_traj
-    
+    env.env.env.traj_gamma = 0.99
 
     if config.load_model:
         filename = Path(config.model_path)
@@ -65,7 +68,7 @@ def run(config, start = 0):
                                         pol_hidden_dim=config.pol_hidden_dim,
                                         critic_hidden_dim=config.critic_hidden_dim)
 
-        model_traj = Distral.init_from_env(env,  s_dim=env.observation_space.shape[1],
+        model_pair = PairAgent.init_from_env(env,  s_dim=env.observation_space.shape[1],
                                         a_dim= env.action_space.n,
                                         n_agent= 1,
                                         tau=config.tau,
@@ -83,26 +86,30 @@ def run(config, start = 0):
     for i in range(config.n_rollout_threads):
         if config.use_gpu:
             model_inter.prep_rollouts(device='cuda')
-            model_traj.prep_rollouts(device='cuda')
+            model_pair.prep_rollouts(device='cuda')
         else:
             model_inter.prep_rollouts(device='cpu')
-            model_traj.prep_rollouts(device='cpu')
+            model_pair.prep_rollouts(device='cpu')
     for ep_i in range(start, config.n_episodes, config.n_rollout_threads):
-        coef = 1 - min(ep_i-40,50) /50
+        coef = 0.5
         if ep_i % config.test_interval < config.n_rollout_threads and start != ep_i:
             print('testing policies')
             obs = env.reset()
             coef = 1 - min(ep_i,50) /50
             for test_t in range(0,3600,env.seconds_per_step):
-                torch_obs = [torch.Tensor(ob).cuda() for ob in obs]
-                # get actions as torch Variables
+                
+                # torch_obs = [torch.Tensor(obs).cuda() for ob in obs]
+                torch_obs = torch.Tensor(obs).cuda()
                 #[thread,agent,act]
-                all_q_inter = model_inter.step(torch_obs[i], explore=True, return_all_q=True)[0]
-                all_q_traj = model_traj.step(torch_obs[i], explore=True, return_all_q=True)[0]
+                all_q_inter = model_inter.step(torch_obs[0], explore=True, return_all_q=True)
+                
+                paired_obs, unpaired_obs = g.to_group_obs(obs)
+                all_q_pair = model_pair.step(torch.Tensor(paired_obs).cuda()[0], explore=True, return_all_q=True)[0]
+                parsed_q_pair = g.parse_group_action([],all_q_pair)
                 # rearrange actions to be per environment
                 #[thread,agent,act]
                 
-                all_q = all_q_inter*coef+all_q_traj*(1-coef)
+                all_q = all_q_inter*coef+parsed_q_pair*(1-coef)
                 act = onehot_from_logits(all_q)
                 # rearranges  actionto be per environment
                 #[thread,agent,act]
@@ -117,10 +124,21 @@ def run(config, start = 0):
         obs = env.reset()
 
         for et_i in range(0,config.episode_length,env.seconds_per_step):
-            torch_obs = [torch.Tensor(ob).cuda() for ob in obs]
-            all_q_inter = model_inter.step(torch_obs[i], explore=True, return_all_q=True)[0]
-            all_q_traj = model_traj.step(torch_obs[i], explore=True, return_all_q=True)[0]
-            all_q = all_q_inter*coef+all_q_traj*(1-coef)
+            # torch_obs = [torch.Tensor(obs).cuda() for ob in obs]
+            torch_obs = torch.Tensor(obs).cuda()
+            #[thread,agent,act]
+            with torch.no_grad():
+                all_q_inter = model_inter.step(torch_obs[0], explore=True, return_all_q=True)
+            
+            paired_obs, unpaired_obs = g.to_group_obs(obs)
+            with torch.no_grad():
+                all_q_pair = model_pair.step(torch.Tensor(paired_obs.squeeze(1)).cuda(), explore=True, return_all_q=True)
+            
+            parsed_q_pair = g.parse_group_action(all_q_pair.cpu().numpy(),None)
+            # rearrange actions to be per environment
+            #[thread,agent,act]
+            
+            all_q = all_q_inter*coef+torch.tensor(parsed_q_pair).cuda()*(1-coef)
             probs = F.softmax(all_q, dim=1)
             int_acs, act = categorical_sample(probs, use_cuda=config.use_gpu)
             actions = [act.cpu().numpy()]
@@ -203,7 +221,7 @@ if __name__ == '__main__':
     parser.add_argument("--pi_lr", default=0.0002, type=float)
     parser.add_argument("--q_lr", default=0.001, type=float)
     parser.add_argument("--tau", default=0.001, type=float)
-    parser.add_argument("--gamma", default=0., type=float)
+    parser.add_argument("--gamma", default=0.99, type=float)
     parser.add_argument("--use_gpu", default=True, action='store_true')
 
     parser.add_argument("--log_num",default=0, type=int)
